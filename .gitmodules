@@ -1,3 +1,6 @@
 [submodule "gym-tetris"]
 	path = gym-tetris
 	url = https://github.com/lusob/gym-tetris.git
+[submodule "tetrisRL"]
+	path = tetrisRL
+	url = https://github.com/jaybutera/tetrisRL.git

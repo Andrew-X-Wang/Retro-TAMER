@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-=======
-# Works!!! Better than the previous one. Need to integrate use of RL
-
-
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 # Tetromino (a Tetris clone)
 # By Al Sweigart al@inventwithpython.com
 # http://inventwithpython.com/pygame
@@ -11,6 +5,10 @@
 
 import random, time, pygame, sys
 from pygame.locals import *
+import numpy as np
+from copy import deepcopy
+import sklearn
+import sklearn.linear_model
 
 FPS = 25
 WINDOWWIDTH = 640
@@ -18,11 +16,7 @@ WINDOWHEIGHT = 480
 BOXSIZE = 20
 BOARDWIDTH = 10
 BOARDHEIGHT = 20
-<<<<<<< HEAD
 BLANK = '.'
-=======
-BLANK = 0
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 MOVESIDEWAYSFREQ = 0.15
 MOVEDOWNFREQ = 0.1
@@ -54,7 +48,6 @@ assert len(COLORS) == len(LIGHTCOLORS) # each color must have light color
 TEMPLATEWIDTH = 5
 TEMPLATEHEIGHT = 5
 
-<<<<<<< HEAD
 S_SHAPE_TEMPLATE = [['.....',
                      '.....',
                      '..OO.',
@@ -156,109 +149,6 @@ T_SHAPE_TEMPLATE = [['.....',
                      '.OO..',
                      '..O..',
                      '.....']]
-=======
-S_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,0,1,1,0],
-                     [0,1,1,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,1,0],
-                     [0,0,0,1,0],
-                     [0,0,0,0,0]]]
-
-Z_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,1,1,0,0],
-                     [0,0,1,1,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,1,1,0,0],
-                     [0,1,0,0,0],
-                     [0,0,0,0,0]]]
-
-I_SHAPE_TEMPLATE = [[[0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [1,1,1,1,0],
-                     [0,0,0,0,0],
-                     [0,0,0,0,0]]]
-
-O_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,1,1,0,0],
-                     [0,1,1,0,0],
-                     [0,0,0,0,0]]]
-
-J_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,1,0,0,0],
-                     [0,1,1,1,0],
-                     [0,0,0,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,1,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,1,1,1,0],
-                     [0,0,0,1,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,1,1,0,0],
-                     [0,0,0,0,0]]]
-
-L_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,0,0,1,0],
-                     [0,1,1,1,0],
-                     [0,0,0,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,1,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,1,1,1,0],
-                     [0,1,0,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,1,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]]]
-
-T_SHAPE_TEMPLATE = [[[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,1,1,1,0],
-                     [0,0,0,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,0,1,1,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,0,0,0],
-                     [0,1,1,1,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]],
-                    [[0,0,0,0,0],
-                     [0,0,1,0,0],
-                     [0,1,1,0,0],
-                     [0,0,1,0,0],
-                     [0,0,0,0,0]]]
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 PIECES = {'S': S_SHAPE_TEMPLATE,
           'Z': Z_SHAPE_TEMPLATE,
@@ -268,24 +158,47 @@ PIECES = {'S': S_SHAPE_TEMPLATE,
           'O': O_SHAPE_TEMPLATE,
           'T': T_SHAPE_TEMPLATE}
 
-<<<<<<< HEAD
+
 ############### TAMER code ################################
 
 ACTIONS = ["left", "right", "rotate", "nothing"]
 
+def convert_board_to_numbers(board):
+    numboard = []
+    for line in board:
+        newline = []
+        for elem in line:
+            if elem == BLANK:
+                newline.append(0.0)
+            else:
+                newline.append(1.0)
+        numboard.append(np.array(newline))
+    return np.array(numboard)
+
 def create_feature_vec(currstate, nextstate):
     # takes two states and concatenated them into a feature vector for linear model
-    currs = np.asarray(currstate)
-    nexts = np.asarray(nextstate)
+    currs = convert_board_to_numbers(currstate)
+    nexts = convert_board_to_numbers(nextstate)
     return np.concatenate((currs.flatten(), nexts.flatten()))
         
-def generate_next_board(board, action):
-    
+def generate_next_board(board, action, fallingPiece):
+    if action == "left" and  and isValidPosition(board, fallingPiece, adjX=-1):
+        fallingPiece['x'] -= 1
+    elif action == "right" and isValidPosition(board, fallingPiece, adjX=1):
+        fallingPiece['x'] += 1
+    elif action == "rotate":
+        fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
+            if not isValidPosition(board, fallingPiece):
+                fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+    elif action == "nothing":
+        pass
+    else:
+        print("you fucked up")
 
-def select_best_action(model, board):
+def select_best_action(model, board, fallingPiece):
     action_values = []
     for action in ACTIONS:
-        nextboard = generate_next_board(board, action)
+        nextboard = generate_next_board(board, action, fallingPiece)
         features = create_feature_vec(board, nextboard)
         
         # actions and action values are in parallel
@@ -297,14 +210,13 @@ def select_best_action(model, board):
         action_values.append(model.predict(features))
         
     best_action = ACTIONS[np.argmax(action_values)]
-    nextboard = generate_next_board(board, best_action)
+    nextboard = generate_next_board(board, best_action, fallingPiece)
     
     features = create_feature_vec(board, nextboard)
     
+    return reatures, best_action
 
 ############### TAMER code ################################
-=======
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 def main():
     global FPSCLOCK, DISPLAYSURF, BASICFONT, BIGFONT
@@ -342,14 +254,11 @@ def runGame():
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
 
-<<<<<<< HEAD
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
     features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
     ############### TAMER code ################################
     
-=======
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
     while True: # game loop
         if fallingPiece == None:
             # No falling piece in play, so start a new piece at the top
@@ -360,7 +269,6 @@ def runGame():
             if not isValidPosition(board, fallingPiece):
                 return # can't fit a new piece on the board, so game over
 
-<<<<<<< HEAD
         ################## TAMER code ######################################
             
         # event handling to get human reinforcement
@@ -369,17 +277,15 @@ def runGame():
         
         if h != 0:
             # model is a SGD regressor, a linear model that we can incrementally update
-            model.partial_fit(board, h)
+            model.partial_fit(features, h)
         
-        action, features = select_best_action(model, board)
+        action, features = select_best_action(model, board, deepcopy(fallingPiece))
         
         # now take the action
         # TODO
         
         ################### TAMER code #################################
         
-=======
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
         checkForQuit()
         for event in pygame.event.get(): # event handling loop
             if event.type == KEYUP:

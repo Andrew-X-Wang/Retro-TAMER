@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+=======
+# Works!!! Better than the previous one. Need to integrate use of RL
+
+
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 # Tetromino (a Tetris clone)
 # By Al Sweigart al@inventwithpython.com
 # http://inventwithpython.com/pygame
@@ -12,7 +18,11 @@ WINDOWHEIGHT = 480
 BOXSIZE = 20
 BOARDWIDTH = 10
 BOARDHEIGHT = 20
+<<<<<<< HEAD
 BLANK = '.'
+=======
+BLANK = 0
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 MOVESIDEWAYSFREQ = 0.15
 MOVEDOWNFREQ = 0.1
@@ -44,6 +54,7 @@ assert len(COLORS) == len(LIGHTCOLORS) # each color must have light color
 TEMPLATEWIDTH = 5
 TEMPLATEHEIGHT = 5
 
+<<<<<<< HEAD
 S_SHAPE_TEMPLATE = [['.....',
                      '.....',
                      '..OO.',
@@ -145,6 +156,109 @@ T_SHAPE_TEMPLATE = [['.....',
                      '.OO..',
                      '..O..',
                      '.....']]
+=======
+S_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,0,1,1,0],
+                     [0,1,1,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,1,0],
+                     [0,0,0,1,0],
+                     [0,0,0,0,0]]]
+
+Z_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,1,1,0,0],
+                     [0,0,1,1,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,1,1,0,0],
+                     [0,1,0,0,0],
+                     [0,0,0,0,0]]]
+
+I_SHAPE_TEMPLATE = [[[0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [1,1,1,1,0],
+                     [0,0,0,0,0],
+                     [0,0,0,0,0]]]
+
+O_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,1,1,0,0],
+                     [0,1,1,0,0],
+                     [0,0,0,0,0]]]
+
+J_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,1,0,0,0],
+                     [0,1,1,1,0],
+                     [0,0,0,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,1,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,1,1,1,0],
+                     [0,0,0,1,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,1,1,0,0],
+                     [0,0,0,0,0]]]
+
+L_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,0,0,1,0],
+                     [0,1,1,1,0],
+                     [0,0,0,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,1,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,1,1,1,0],
+                     [0,1,0,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,1,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]]]
+
+T_SHAPE_TEMPLATE = [[[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,1,1,1,0],
+                     [0,0,0,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,0,1,1,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,0,0,0],
+                     [0,1,1,1,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]],
+                    [[0,0,0,0,0],
+                     [0,0,1,0,0],
+                     [0,1,1,0,0],
+                     [0,0,1,0,0],
+                     [0,0,0,0,0]]]
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 PIECES = {'S': S_SHAPE_TEMPLATE,
           'Z': Z_SHAPE_TEMPLATE,
@@ -154,6 +268,7 @@ PIECES = {'S': S_SHAPE_TEMPLATE,
           'O': O_SHAPE_TEMPLATE,
           'T': T_SHAPE_TEMPLATE}
 
+<<<<<<< HEAD
 ############### TAMER code ################################
 
 ACTIONS = ["left", "right", "rotate", "nothing"]
@@ -188,6 +303,8 @@ def select_best_action(model, board):
     
 
 ############### TAMER code ################################
+=======
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
 
 def main():
     global FPSCLOCK, DISPLAYSURF, BASICFONT, BIGFONT
@@ -225,11 +342,14 @@ def runGame():
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
 
+<<<<<<< HEAD
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
     features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
     ############### TAMER code ################################
     
+=======
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
     while True: # game loop
         if fallingPiece == None:
             # No falling piece in play, so start a new piece at the top
@@ -240,6 +360,7 @@ def runGame():
             if not isValidPosition(board, fallingPiece):
                 return # can't fit a new piece on the board, so game over
 
+<<<<<<< HEAD
         ################## TAMER code ######################################
             
         # event handling to get human reinforcement
@@ -257,6 +378,8 @@ def runGame():
         
         ################### TAMER code #################################
         
+=======
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111
         checkForQuit()
         for event in pygame.event.get(): # event handling loop
             if event.type == KEYUP:
@@ -559,4 +682,8 @@ def drawNextPiece(piece):
 
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     main()
+=======
+    main()
+>>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111

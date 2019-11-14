@@ -161,7 +161,11 @@ PIECES = {'S': S_SHAPE_TEMPLATE,
 
 ############### TAMER code ################################
 
-ACTIONS = ["left", "right", "rotate", "nothing"]
+LEFT = 0
+RIGHT = 1
+ROTATE = 2
+NOTHING = 3
+ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING]
 
 def convert_board_to_numbers(board):
     numboard = []
@@ -182,18 +186,22 @@ def create_feature_vec(currstate, nextstate):
     return np.concatenate((currs.flatten(), nexts.flatten()))
         
 def generate_next_board(board, action, fallingPiece):
-    if action == "left" and  and isValidPosition(board, fallingPiece, adjX=-1):
+    nextboard = deepcopy(board)
+    if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
         fallingPiece['x'] -= 1
-    elif action == "right" and isValidPosition(board, fallingPiece, adjX=1):
+    elif action == RIGHT and isValidPosition(board, fallingPiece, adjX=1):
         fallingPiece['x'] += 1
-    elif action == "rotate":
+    elif action == ROTATE:
         fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
-            if not isValidPosition(board, fallingPiece):
-                fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-    elif action == "nothing":
+        if not isValidPosition(board, fallingPiece):
+            fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+    elif action == NOTHING:
         pass
-    else:
-        print("you fucked up")
+    
+    addToBoard(nextboard, fallingPiece)
+    score = removeCompleteLines(nextboard)
+    return nextboard
+    
 
 def select_best_action(model, board, fallingPiece):
     action_values = []
@@ -207,14 +215,17 @@ def select_best_action(model, board, fallingPiece):
         #    - 1 is right
         #    - 2 is rotate
         #    - 3 is nothing
-        action_values.append(model.predict(features))
+        pred = model.predict(np.array([features]))[0]
+        print(pred)
+        action_values.append(pred)
         
-    best_action = ACTIONS[np.argmax(action_values)]
+    action_values = np.array(action_values)
+    best_action = ACTIONS[np.random.choice(np.flatnonzero(action_values == action_values.max()))]
     nextboard = generate_next_board(board, best_action, fallingPiece)
     
     features = create_feature_vec(board, nextboard)
     
-    return reatures, best_action
+    return features, best_action
 
 ############### TAMER code ################################
 
@@ -228,18 +239,25 @@ def main():
     pygame.display.set_caption('Tetromino')
 
     showTextScreen('Tetromino')
+    
+    ############### TAMER code ################################
+    model = sklearn.linear_model.SGDRegressor()
+    features = np.random.random(2*BOARDHEIGHT*BOARDWIDTH)
+    h = 0.0
+    model.partial_fit(np.array([features]), np.array([h]))
+    ############### TAMER code ################################
     while True: # game loop
 #         if random.randint(0, 1) == 0:
 #             pygame.mixer.music.load('tetrisb.mid')
 #         else:
 #             pygame.mixer.music.load('tetrisc.mid')
 #         pygame.mixer.music.play(-1, 0.0)
-        runGame()
+        runGame(model, features, h)
 #         pygame.mixer.music.stop()
         showTextScreen('Game Over')
 
 
-def runGame():
+def runGame(model, features, h):
     # setup variables for the start of the game
     board = getBlankBoard()
     lastMoveDownTime = time.time()
@@ -253,11 +271,6 @@ def runGame():
 
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
-
-    ############### TAMER code ################################
-    model = sklearn.linear_model.SGDRegressor()
-    features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
-    ############### TAMER code ################################
     
     while True: # game loop
         if fallingPiece == None:
@@ -275,92 +288,122 @@ def runGame():
         # variable h that holds reinforcement (h = 0 for no reinforcement)
         # need to give specific timeframe to deliver reinforcement
         
-        if h != 0:
-            # model is a SGD regressor, a linear model that we can incrementally update
-            model.partial_fit(features, h)
-        
-        action, features = select_best_action(model, board, deepcopy(fallingPiece))
-        
-        # now take the action
-        # TODO
-        
-        ################### TAMER code #################################
-        
-        checkForQuit()
-        for event in pygame.event.get(): # event handling loop
+        for event in pygame.event.get():
             if event.type == KEYUP:
-                if (event.key == K_p):
-                    # Pausing the game
+                if event.key == K_LEFT:
+                    h = -1.0
+                elif event.key == K_RIGHT:
+                    h = 1.0
+                elif (event.key == K_p):
+#                     # Pausing the game
                     DISPLAYSURF.fill(BGCOLOR)
-#                     pygame.mixer.music.stop()
+# #                     pygame.mixer.music.stop()
                     showTextScreen('Paused') # pause until a key press
-#                     pygame.mixer.music.play(-1, 0.0)
+# #                     pygame.mixer.music.play(-1, 0.0)
                     lastFallTime = time.time()
                     lastMoveDownTime = time.time()
                     lastMoveSidewaysTime = time.time()
-                elif (event.key == K_LEFT or event.key == K_a):
-                    movingLeft = False
-                elif (event.key == K_RIGHT or event.key == K_d):
-                    movingRight = False
-                elif (event.key == K_DOWN or event.key == K_s):
-                    movingDown = False
 
-            elif event.type == KEYDOWN:
-                # moving the piece sideways
-                if (event.key == K_LEFT or event.key == K_a) and isValidPosition(board, fallingPiece, adjX=-1):
-                    fallingPiece['x'] -= 1
-                    movingLeft = True
-                    movingRight = False
-                    lastMoveSidewaysTime = time.time()
+        ################### TAMER code #################################
+        
+#         checkForQuit()
+#         for event in pygame.event.get(): # event handling loop
+#             if event.type == KEYUP:
+#                 if (event.key == K_p):
+#                     # Pausing the game
+#                     DISPLAYSURF.fill(BGCOLOR)
+# #                     pygame.mixer.music.stop()
+#                     showTextScreen('Paused') # pause until a key press
+# #                     pygame.mixer.music.play(-1, 0.0)
+#                     lastFallTime = time.time()
+#                     lastMoveDownTime = time.time()
+#                     lastMoveSidewaysTime = time.time()
+#                 elif (event.key == K_LEFT or event.key == K_a):
+#                     movingLeft = False
+#                 elif (event.key == K_RIGHT or event.key == K_d):
+#                     movingRight = False
+#                 elif (event.key == K_DOWN or event.key == K_s):
+#                     movingDown = False
 
-                elif (event.key == K_RIGHT or event.key == K_d) and isValidPosition(board, fallingPiece, adjX=1):
-                    fallingPiece['x'] += 1
-                    movingRight = True
-                    movingLeft = False
-                    lastMoveSidewaysTime = time.time()
+#             elif event.type == KEYDOWN:
+#                 # moving the piece sideways
+#                 if (event.key == K_LEFT or event.key == K_a) and isValidPosition(board, fallingPiece, adjX=-1):
+#                     fallingPiece['x'] -= 1
+#                     movingLeft = True
+#                     movingRight = False
+#                     lastMoveSidewaysTime = time.time()
 
-                # rotating the piece (if there is room to rotate)
-                elif (event.key == K_UP or event.key == K_w):
-                    fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
-                    if not isValidPosition(board, fallingPiece):
-                        fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-                elif (event.key == K_q): # rotate the other direction
-                    fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-                    if not isValidPosition(board, fallingPiece):
-                        fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
+#                 elif (event.key == K_RIGHT or event.key == K_d) and isValidPosition(board, fallingPiece, adjX=1):
+#                     fallingPiece['x'] += 1
+#                     movingRight = True
+#                     movingLeft = False
+#                     lastMoveSidewaysTime = time.time()
 
-                # making the piece fall faster with the down key
-                elif (event.key == K_DOWN or event.key == K_s):
-                    movingDown = True
-                    if isValidPosition(board, fallingPiece, adjY=1):
-                        fallingPiece['y'] += 1
-                    lastMoveDownTime = time.time()
+#                 # rotating the piece (if there is room to rotate)
+#                 elif (event.key == K_UP or event.key == K_w):
+#                     fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
+#                     if not isValidPosition(board, fallingPiece):
+#                         fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+#                 elif (event.key == K_q): # rotate the other direction
+#                     fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+#                     if not isValidPosition(board, fallingPiece):
+#                         fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
 
-                # move the current piece all the way down
-                elif event.key == K_SPACE:
-                    movingDown = False
-                    movingLeft = False
-                    movingRight = False
-                    for i in range(1, BOARDHEIGHT):
-                        if not isValidPosition(board, fallingPiece, adjY=i):
-                            break
-                    fallingPiece['y'] += i - 1
+#                 # making the piece fall faster with the down key
+#                 elif (event.key == K_DOWN or event.key == K_s):
+#                     movingDown = True
+#                     if isValidPosition(board, fallingPiece, adjY=1):
+#                         fallingPiece['y'] += 1
+#                     lastMoveDownTime = time.time()
 
-        # handle moving the piece because of user input
-        if (movingLeft or movingRight) and time.time() - lastMoveSidewaysTime > MOVESIDEWAYSFREQ:
-            if movingLeft and isValidPosition(board, fallingPiece, adjX=-1):
-                fallingPiece['x'] -= 1
-            elif movingRight and isValidPosition(board, fallingPiece, adjX=1):
-                fallingPiece['x'] += 1
-            lastMoveSidewaysTime = time.time()
+#                 # move the current piece all the way down
+#                 elif event.key == K_SPACE:
+#                     movingDown = False
+#                     movingLeft = False
+#                     movingRight = False
+#                     for i in range(1, BOARDHEIGHT):
+#                         if not isValidPosition(board, fallingPiece, adjY=i):
+#                             break
+#                     fallingPiece['y'] += i - 1
 
-        if movingDown and time.time() - lastMoveDownTime > MOVEDOWNFREQ and isValidPosition(board, fallingPiece, adjY=1):
-            fallingPiece['y'] += 1
-            lastMoveDownTime = time.time()
+#         # handle moving the piece because of user input
+#         if (movingLeft or movingRight) and time.time() - lastMoveSidewaysTime > MOVESIDEWAYSFREQ:
+#             if movingLeft and isValidPosition(board, fallingPiece, adjX=-1):
+#                 fallingPiece['x'] -= 1
+#             elif movingRight and isValidPosition(board, fallingPiece, adjX=1):
+#                 fallingPiece['x'] += 1
+#             lastMoveSidewaysTime = time.time()
+
+#         if movingDown and time.time() - lastMoveDownTime > MOVEDOWNFREQ and isValidPosition(board, fallingPiece, adjY=1):
+#             fallingPiece['y'] += 1
+#             lastMoveDownTime = time.time()
 
         # let the piece fall if it is time to fall
         if time.time() - lastFallTime > fallFreq:
             # see if the piece has landed
+            
+            if h != 0:
+                # model is a SGD regressor, a linear model that we can incrementally update
+                model.partial_fit(np.array([features]), np.array([h]))
+
+            features, action = select_best_action(model, board, deepcopy(fallingPiece))
+            print(action)
+            
+            # now take the action
+            if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
+                fallingPiece['x'] -= 1
+            elif action == RIGHT and isValidPosition(board, fallingPiece, adjX=1):
+                fallingPiece['x'] += 1
+            elif action == ROTATE:
+                fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
+                if not isValidPosition(board, fallingPiece):
+                    fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+            elif action == NOTHING:
+                pass
+
+            h = 0.0
+            pygame.event.clear()
+            
             if not isValidPosition(board, fallingPiece, adjY=1):
                 # falling piece has landed, set it on the board
                 addToBoard(board, fallingPiece)
@@ -442,7 +485,7 @@ def calculateLevelAndFallFreq(score):
     # Based on the score, return the level the player is on and
     # how many seconds pass until a falling piece falls one space.
     level = int(score / 10) + 1
-    fallFreq = 0.27 - (level * 0.02)
+    fallFreq = 0.54 - (level * 0.02)    # 0.27
     return level, fallFreq
 
 def getNewPiece():
@@ -461,9 +504,8 @@ def addToBoard(board, piece):
     for x in range(TEMPLATEWIDTH):
         for y in range(TEMPLATEHEIGHT):
             if PIECES[piece['shape']][piece['rotation']][y][x] != BLANK:
-                board[x + piece['x']][y + piece['y']] = piece['color']
-
-
+                board[x + piece['x']][y + piece['y']] = piece['color']    
+    
 def getBlankBoard():
     # create and return a new blank board data structure
     board = []
@@ -588,8 +630,4 @@ def drawNextPiece(piece):
 
 
 if __name__ == '__main__':
-<<<<<<< HEAD
     main()
-=======
-    main()
->>>>>>> 504acfd459364f3d9961c15b1fd7e67e9471c111

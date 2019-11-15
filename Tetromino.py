@@ -13,9 +13,9 @@ import sklearn.linear_model
 FPS = 25
 WINDOWWIDTH = 640
 WINDOWHEIGHT = 480
-BOXSIZE = 20
-BOARDWIDTH = 10
-BOARDHEIGHT = 20
+BOXSIZE = 20         # 20
+BOARDWIDTH = 5      # 10
+BOARDHEIGHT = 10     # 20
 BLANK = '.'
 
 MOVESIDEWAYSFREQ = 0.15
@@ -179,10 +179,17 @@ def convert_board_to_numbers(board):
         numboard.append(np.array(newline))
     return np.array(numboard)
 
-def create_feature_vec(currstate, nextstate):
+def create_feature_vec(currstate, nextstate, piece):
     # takes two states and concatenated them into a feature vector for linear model
+    addToBoard(currstate, piece)
     currs = convert_board_to_numbers(currstate)
     nexts = convert_board_to_numbers(nextstate)
+#     for line in currs:
+#         print(line)
+#     print()
+#     for line in nexts:
+#         print(line)
+#     print()
     return np.concatenate((currs.flatten(), nexts.flatten()))
         
 def generate_next_board(board, action, fallingPiece):
@@ -197,6 +204,8 @@ def generate_next_board(board, action, fallingPiece):
             fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
     elif action == NOTHING:
         pass
+    if isValidPosition(board, fallingPiece, adjY=1):
+        fallingPiece['y'] += 1
     
     addToBoard(nextboard, fallingPiece)
     score = removeCompleteLines(nextboard)
@@ -205,9 +214,10 @@ def generate_next_board(board, action, fallingPiece):
 
 def select_best_action(model, board, fallingPiece):
     action_values = []
+    origPiece = deepcopy(fallingPiece)
     for action in ACTIONS:
-        nextboard = generate_next_board(board, action, fallingPiece)
-        features = create_feature_vec(board, nextboard)
+        nextboard = generate_next_board(board, action, deepcopy(origPiece))
+        features = create_feature_vec(deepcopy(board), nextboard, origPiece)
         
         # actions and action values are in parallel
         # indices:
@@ -221,9 +231,9 @@ def select_best_action(model, board, fallingPiece):
         
     action_values = np.array(action_values)
     best_action = ACTIONS[np.random.choice(np.flatnonzero(action_values == action_values.max()))]
-    nextboard = generate_next_board(board, best_action, fallingPiece)
+    nextboard = generate_next_board(board, best_action, deepcopy(origPiece))
     
-    features = create_feature_vec(board, nextboard)
+    features = create_feature_vec(board, nextboard, origPiece)
     
     return features, best_action
 
@@ -242,9 +252,12 @@ def main():
     
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
-    features = np.random.random(2*BOARDHEIGHT*BOARDWIDTH)
+    features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
     h = 0.0
-    model.partial_fit(np.array([features]), np.array([h]))
+    model.partial_fit(np.array([features]), np.array([-1.0]))
+    
+    memory = {"Boards": [], "Scores": [], "Levels": []}
+
     ############### TAMER code ################################
     while True: # game loop
 #         if random.randint(0, 1) == 0:
@@ -382,11 +395,14 @@ def runGame(model, features, h):
         if time.time() - lastFallTime > fallFreq:
             # see if the piece has landed
             
+#             deletePieceFromBoard(board, fallingPiece)
+            
             if h != 0:
                 # model is a SGD regressor, a linear model that we can incrementally update
                 model.partial_fit(np.array([features]), np.array([h]))
 
-            features, action = select_best_action(model, board, deepcopy(fallingPiece))
+            
+            features, action = select_best_action(model, deepcopy(board), deepcopy(fallingPiece))
             print(action)
             
             # now take the action
@@ -401,6 +417,9 @@ def runGame(model, features, h):
             elif action == NOTHING:
                 pass
 
+#             for line in board:
+#                 print(line)
+            
             h = 0.0
             pygame.event.clear()
             
@@ -412,6 +431,7 @@ def runGame(model, features, h):
                 fallingPiece = None
             else:
                 # piece did not land, just move the piece down
+#                 addToBoard(board, fallingPiece)
                 fallingPiece['y'] += 1
                 lastFallTime = time.time()
 
@@ -485,7 +505,7 @@ def calculateLevelAndFallFreq(score):
     # Based on the score, return the level the player is on and
     # how many seconds pass until a falling piece falls one space.
     level = int(score / 10) + 1
-    fallFreq = 0.54 - (level * 0.02)    # 0.27
+    fallFreq = 0.70 - (level * 0.02)    # 0.27
     return level, fallFreq
 
 def getNewPiece():
@@ -504,7 +524,14 @@ def addToBoard(board, piece):
     for x in range(TEMPLATEWIDTH):
         for y in range(TEMPLATEHEIGHT):
             if PIECES[piece['shape']][piece['rotation']][y][x] != BLANK:
-                board[x + piece['x']][y + piece['y']] = piece['color']    
+                board[x + piece['x']][y + piece['y']] = piece['color']
+                
+def deletePieceFromBoard(board, piece):
+     # fill in the board based on piece's location, shape, and rotation, with a blank
+    for x in range(TEMPLATEWIDTH):
+        for y in range(TEMPLATEHEIGHT):
+            if PIECES[piece['shape']][piece['rotation']][y][x] != BLANK:
+                board[x + piece['x']][y + piece['y']] = BLANK 
     
 def getBlankBoard():
     # create and return a new blank board data structure

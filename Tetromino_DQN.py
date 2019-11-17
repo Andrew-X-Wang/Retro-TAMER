@@ -14,8 +14,8 @@ FPS = 25
 WINDOWWIDTH = 640
 WINDOWHEIGHT = 480
 BOXSIZE = 20         # 20
-BOARDWIDTH = 10      # 10
-BOARDHEIGHT = 20     # 20
+BOARDWIDTH = 5      # 10
+BOARDHEIGHT = 10     # 20
 BLANK = '.'
 
 MOVESIDEWAYSFREQ = 0.15
@@ -285,11 +285,6 @@ def runGame(model, features, h):
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
     
-    ############### TAMER code ###################
-    features_trace = []
-    h_trace = []    
-    ############### TAMER code ###################
-    
     while True: # game loop
         if fallingPiece == None:
             # No falling piece in play, so start a new piece at the top
@@ -298,11 +293,6 @@ def runGame(model, features, h):
             lastFallTime = time.time() # reset lastFallTime
 
             if not isValidPosition(board, fallingPiece):
-                ############### TAMER code ###################
-                features_trace = np.array(features_trace)
-                h_trace = np.array(h_trace)
-                model.partial_fit(features_trace, h_trace)
-                ############### TAMER code ###################
                 return # can't fit a new piece on the board, so game over
 
         ################## TAMER code ######################################
@@ -402,12 +392,14 @@ def runGame(model, features, h):
 #             lastMoveDownTime = time.time()
 
         # let the piece fall if it is time to fall
-        if time.time() - lastFallTime > fallFreq:            
+        if time.time() - lastFallTime > fallFreq:
+            # see if the piece has landed
+            
+#             deletePieceFromBoard(board, fallingPiece)
+            
             if h != 0:
                 # model is a SGD regressor, a linear model that we can incrementally update
                 model.partial_fit(np.array([features]), np.array([h]))
-                features_trace.append(features)
-                h_trace.append(h)
 
             
             features, action = select_best_action(model, deepcopy(board), deepcopy(fallingPiece))

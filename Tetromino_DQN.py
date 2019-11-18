@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
+import sys
 
 FPS = 25
 WINDOWWIDTH = 640
@@ -255,25 +256,42 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
+# class DQN(nn.Module):
+#     def __init__(self):
+#         super(DQN, self).__init__()
+#         self.conv1 = nn.Conv2d(1, 16, kernel_size=2, stride=1)
+#         self.bn1 = nn.BatchNorm2d(16)
+#         self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
+#         self.bn2 = nn.BatchNorm2d(32)
+#         #self.conv3 = nn.Conv2d(32, 32, kernel_size=2, stride=2)
+#         #self.bn3 = nn.BatchNorm2d(32)
+#         #self.rnn = nn.LSTM(448, 240)
+#         self.lin1 = nn.Linear(32, 16)
+#         self.head = nn.Linear(16, len(ACTIONS))
+
+#     def forward(self, x):
+#         x = F.relu(self.bn1(self.conv1(x)))
+#         x = F.relu(self.bn2(self.conv2(x)))
+#         print(x.shape)
+#         #x = F.relu(self.bn3(self.conv3(x)))
+#         x = F.relu(self.lin1(x))
+#         return self.head(x)
+    
 class DQN(nn.Module):
     def __init__(self):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        #self.conv3 = nn.Conv2d(32, 32, kernel_size=2, stride=2)
-        #self.bn3 = nn.BatchNorm2d(32)
-        #self.rnn = nn.LSTM(448, 240)
-        self.lin1 = nn.Linear(768, 256)
-        self.head = nn.Linear(256, len(ACTIONS))
+        self.lin1 = nn.Linear(BOARDHEIGHT*BOARDWIDTH, 2*BOARDHEIGHT*BOARDWIDTH)
+        self.bn1 = nn.BatchNorm1d(2*BOARDHEIGHT*BOARDWIDTH)
+        self.lin2 = nn.Linear(2*BOARDHEIGHT*BOARDWIDTH, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.lin3 = nn.Linear(64, 16)
+        self.head = nn.Linear(16, len(ACTIONS))
 
     def forward(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        #x = F.relu(self.bn3(self.conv3(x)))
-        x = F.relu(self.lin1(x.view(x.size(0), -1)))
-        return self.head(x.view(x.size(0), -1))
+        x = F.relu(self.bn1(self.lin1(x)))
+        x = F.relu(self.bn2(self.lin2(x)))
+        x = F.relu(self.lin3(x))
+        return self.head(x)
 
 steps_done = 0
 def select_action(model, board):
@@ -282,15 +300,16 @@ def select_action(model, board):
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
-    if sample > eps_threshold:
-        return model(
-            Variable(board, volatile=True).type(FloatTensor)).data.max(1)[1].view(1, 1)
-    else:
-        return FloatTensor([[random.randrange(len(ACTIONS))]])
+    with torch.no_grad():
+        if sample > eps_threshold:
+            return model(
+                Variable(board, volatile=True).type(FloatTensor)).data.max(1)[1].view(1, 1)
+        else:
+            return FloatTensor([[random.randrange(len(ACTIONS))]])
 
 last_sync = 0
 
-def optimize_model():
+def optimize_model(model, memory):
     global last_sync
     if len(memory) < BATCH_SIZE:
         return
@@ -315,7 +334,7 @@ def optimize_model():
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken
-    state_action_values = model(state_batch).gather(1, action_batch)
+    state_action_values = model(state_batch.float()).gather(1, action_batch)
 
     # Compute V(s_{t+1}) for all next states.
     next_state_values = Variable(torch.zeros(BATCH_SIZE).type(FloatTensor))
@@ -360,16 +379,14 @@ def main():
     optimizer = optim.RMSprop(model.parameters(), lr=.001)
     memory = ReplayMemory(3000)
     ############### DQN code ################################
-    while True: # game loop
-#         if random.randint(0, 1) == 0:
-#             pygame.mixer.music.load('tetrisb.mid')
-#         else:
-#             pygame.mixer.music.load('tetrisc.mid')
-#         pygame.mixer.music.play(-1, 0.0)
+    num_episodes = 5000
+    for ep in range(num_episodes):
+        print("Episode # %d" % (ep + 1), end="\r")
+        sys.stdout.flush()
         model, memory, optimizer, loss = runGame(model, memory, optimizer, loss)
-        return
-#         pygame.mixer.music.stop()
-#         showTextScreen('Game Over')
+        model.train()
+        l = optimize_model(model, memory)
+    print(score)
 
 
 def runGame(model, memory, optimizer, loss):
@@ -399,19 +416,13 @@ def runGame(model, memory, optimizer, loss):
 
             if not isValidPosition(board, fallingPiece):
                 return model, memory, optimizer, loss # can't fit a new piece on the board, so game over
-
-        for line in board:
-            print(line)
-            
-        if delete:
-            deletePieceFromBoard(board, fallingPiece)
         
         # select action
-        action = ACTIONS[select_action(model, torch.from_numpy(convert_board_to_numbers(board))).type(LongTensor)[0,0]]
-        print(action)
-        
-        if count > 20:
-            return
+        numboard = np.array([convert_board_to_numbers(board).flatten()])
+        numboard = torch.from_numpy(numboard)
+        model.eval()
+        act = select_action(model, numboard).type(LongTensor)
+        action = ACTIONS[act[0,0]]
 
         # now take the action
         if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
@@ -424,13 +435,17 @@ def runGame(model, memory, optimizer, loss):
                 fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
         elif action == NOTHING:
             pass
-
-        h = 0.0
-
+        
+        last_state = torch.from_numpy(np.array([convert_board_to_numbers(deepcopy(board)).flatten()]))
+        reward = 0.0   # initialize reward to zero
+        if delete:
+            deletePieceFromBoard(board, fallingPiece)
+        
         if not isValidPosition(board, fallingPiece, adjY=1):
             # falling piece has landed, set it on the board
             addToBoard(board, fallingPiece)
-            score += removeCompleteLines(board)
+            reward = float(removeCompleteLines(board))
+            score += int(reward)
             level, fallFreq = calculateLevelAndFallFreq(score)
             fallingPiece = None
             delete = False
@@ -440,7 +455,11 @@ def runGame(model, memory, optimizer, loss):
             addToBoard(board, fallingPiece)
             lastFallTime = time.time()
             delete = True
-
+        
+        reward = FloatTensor([reward])
+        state = torch.from_numpy(np.array([convert_board_to_numbers(deepcopy(board)).flatten()]))
+        memory.push(last_state, act, state, reward)
+        
         # drawing everything on the screen
 #         DISPLAYSURF.fill(BGCOLOR)
 #         drawBoard(board)

@@ -9,6 +9,13 @@ import numpy as np
 from copy import deepcopy
 import sklearn
 import sklearn.linear_model
+from collections import namedtuple
+import math
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.autograd import Variable
 
 FPS = 25
 WINDOWWIDTH = 640
@@ -210,67 +217,162 @@ def generate_next_board(board, action, fallingPiece):
     addToBoard(nextboard, fallingPiece)
     score = removeCompleteLines(nextboard)
     return nextboard
-    
-
-def select_best_action(model, board, fallingPiece):
-    action_values = []
-    origPiece = deepcopy(fallingPiece)
-    for action in ACTIONS:
-        nextboard = generate_next_board(board, action, deepcopy(origPiece))
-        features = create_feature_vec(deepcopy(board), nextboard, origPiece)
-        
-        # actions and action values are in parallel
-        # indices:
-        #    - 0 is left
-        #    - 1 is right
-        #    - 2 is rotate
-        #    - 3 is nothing
-        pred = model.predict(np.array([features]))[0]
-        print(pred)
-        action_values.append(pred)
-        
-    action_values = np.array(action_values)
-    best_action = ACTIONS[np.random.choice(np.flatnonzero(action_values == action_values.max()))]
-    nextboard = generate_next_board(board, best_action, deepcopy(origPiece))
-    
-    features = create_feature_vec(board, nextboard, origPiece)
-    
-    return features, best_action
 
 ############### TAMER code ################################
 
+############### DQN code ################################
+
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
+
+BATCH_SIZE = 64
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+
+FloatTensor = torch.FloatTensor
+LongTensor = torch.LongTensor
+ByteTensor = torch.ByteTensor
+
+class ReplayMemory(object):
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory = []
+        self.position = 0
+
+    def push(self, *args):
+        """Saves a transition."""
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        self.memory[self.position] = Transition(*args)
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+
+class DQN(nn.Module):
+    def __init__(self):
+        super(DQN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
+        self.bn2 = nn.BatchNorm2d(32)
+        #self.conv3 = nn.Conv2d(32, 32, kernel_size=2, stride=2)
+        #self.bn3 = nn.BatchNorm2d(32)
+        #self.rnn = nn.LSTM(448, 240)
+        self.lin1 = nn.Linear(768, 256)
+        self.head = nn.Linear(256, len(ACTIONS))
+
+    def forward(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        #x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.lin1(x.view(x.size(0), -1)))
+        return self.head(x.view(x.size(0), -1))
+
+steps_done = 0
+def select_action(model, board):
+    global steps_done
+    sample = random.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+        math.exp(-1. * steps_done / EPS_DECAY)
+    steps_done += 1
+    if sample > eps_threshold:
+        return model(
+            Variable(board, volatile=True).type(FloatTensor)).data.max(1)[1].view(1, 1)
+    else:
+        return FloatTensor([[random.randrange(len(ACTIONS))]])
+
+last_sync = 0
+
+def optimize_model():
+    global last_sync
+    if len(memory) < BATCH_SIZE:
+        return
+    transitions = memory.sample(BATCH_SIZE)
+    # Transpose the batch (see http://stackoverflow.com/a/19343/3343043 for
+    # detailed explanation).
+    batch = Transition(*zip(*transitions))
+
+    # Compute a mask of non-final states and concatenate the batch elements
+    non_final_mask = ByteTensor(tuple(map(lambda s: s is not None,
+                                          batch.next_state)))
+
+    # We don't want to backprop through the expected action values and volatile
+    # will save us on temporarily changing the model parameters'
+    # requires_grad to False!
+    non_final_next_states = Variable(torch.cat([s for s in batch.next_state
+                                                if s is not None]),
+                                     volatile=True)
+    state_batch = Variable(torch.cat(batch.state))
+    action_batch = Variable(torch.cat(batch.action))
+    reward_batch = Variable(torch.cat(batch.reward))
+
+    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+    # columns of actions taken
+    state_action_values = model(state_batch).gather(1, action_batch)
+
+    # Compute V(s_{t+1}) for all next states.
+    next_state_values = Variable(torch.zeros(BATCH_SIZE).type(FloatTensor))
+    next_state_values[non_final_mask] = model(non_final_next_states).max(1)[0]
+    # Now, we don't want to mess up the loss with a volatile flag, so let's
+    # clear it. After this, we'll just end up with a Variable that has
+    # requires_grad=False
+    next_state_values.volatile = False
+    # Compute the expected Q values
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+
+    # Compute Huber loss
+    loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
+
+    # Optimize the model
+    optimizer.zero_grad()
+    loss.backward()
+    for param in model.parameters():
+        param.grad.data.clamp_(-1, 1)
+    optimizer.step()
+    
+    if len(loss.data)>0 : return loss.data[0] 
+    else : return loss
+    
+############### DQN code ################################
+
 def main():
     global FPSCLOCK, DISPLAYSURF, BASICFONT, BIGFONT
-    pygame.init()
-    FPSCLOCK = pygame.time.Clock()
-    DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
-    BASICFONT = pygame.font.Font('freesansbold.ttf', 18)
-    BIGFONT = pygame.font.Font('freesansbold.ttf', 100)
-    pygame.display.set_caption('Tetromino')
+#     pygame.init()
+#     FPSCLOCK = pygame.time.Clock()
+#     DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
+#     BASICFONT = pygame.font.Font('freesansbold.ttf', 18)
+#     BIGFONT = pygame.font.Font('freesansbold.ttf', 100)
+#     pygame.display.set_caption('Tetromino')
 
-    showTextScreen('Tetromino')
+#     showTextScreen('Tetromino')
     
-    ############### TAMER code ################################
-    model = sklearn.linear_model.SGDRegressor()
-    features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
-    h = 0.0
-    model.partial_fit(np.array([features]), np.array([-1.0]))
-    
-    memory = {"Boards": [], "Scores": [], "Levels": []}
-
-    ############### TAMER code ################################
+    ############### DQN code ################################
+    steps_done = 0
+    model = DQN()
+    loss = nn.MSELoss()
+    optimizer = optim.RMSprop(model.parameters(), lr=.001)
+    memory = ReplayMemory(3000)
+    ############### DQN code ################################
     while True: # game loop
 #         if random.randint(0, 1) == 0:
 #             pygame.mixer.music.load('tetrisb.mid')
 #         else:
 #             pygame.mixer.music.load('tetrisc.mid')
 #         pygame.mixer.music.play(-1, 0.0)
-        runGame(model, features, h)
+        model, memory, optimizer, loss = runGame(model, memory, optimizer, loss)
+        return
 #         pygame.mixer.music.stop()
-        showTextScreen('Game Over')
+#         showTextScreen('Game Over')
 
 
-def runGame(model, features, h):
+def runGame(model, memory, optimizer, loss):
     # setup variables for the start of the game
     board = getBlankBoard()
     lastMoveDownTime = time.time()
@@ -285,7 +387,10 @@ def runGame(model, features, h):
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
     
+    delete = False
+    count = 0
     while True: # game loop
+        count += 1
         if fallingPiece == None:
             # No falling piece in play, so start a new piece at the top
             fallingPiece = nextPiece
@@ -293,158 +398,59 @@ def runGame(model, features, h):
             lastFallTime = time.time() # reset lastFallTime
 
             if not isValidPosition(board, fallingPiece):
-                return # can't fit a new piece on the board, so game over
+                return model, memory, optimizer, loss # can't fit a new piece on the board, so game over
 
-        ################## TAMER code ######################################
+        for line in board:
+            print(line)
             
-        # event handling to get human reinforcement
-        # variable h that holds reinforcement (h = 0 for no reinforcement)
-        # need to give specific timeframe to deliver reinforcement
+        if delete:
+            deletePieceFromBoard(board, fallingPiece)
         
-        for event in pygame.event.get():
-            if event.type == KEYUP:
-                if event.key == K_LEFT:
-                    h = -1.0
-                elif event.key == K_RIGHT:
-                    h = 1.0
-                elif (event.key == K_p):
-#                     # Pausing the game
-                    DISPLAYSURF.fill(BGCOLOR)
-# #                     pygame.mixer.music.stop()
-                    showTextScreen('Paused') # pause until a key press
-# #                     pygame.mixer.music.play(-1, 0.0)
-                    lastFallTime = time.time()
-                    lastMoveDownTime = time.time()
-                    lastMoveSidewaysTime = time.time()
-
-        ################### TAMER code #################################
+        # select action
+        action = ACTIONS[select_action(model, torch.from_numpy(convert_board_to_numbers(board))).type(LongTensor)[0,0]]
+        print(action)
         
-#         checkForQuit()
-#         for event in pygame.event.get(): # event handling loop
-#             if event.type == KEYUP:
-#                 if (event.key == K_p):
-#                     # Pausing the game
-#                     DISPLAYSURF.fill(BGCOLOR)
-# #                     pygame.mixer.music.stop()
-#                     showTextScreen('Paused') # pause until a key press
-# #                     pygame.mixer.music.play(-1, 0.0)
-#                     lastFallTime = time.time()
-#                     lastMoveDownTime = time.time()
-#                     lastMoveSidewaysTime = time.time()
-#                 elif (event.key == K_LEFT or event.key == K_a):
-#                     movingLeft = False
-#                 elif (event.key == K_RIGHT or event.key == K_d):
-#                     movingRight = False
-#                 elif (event.key == K_DOWN or event.key == K_s):
-#                     movingDown = False
+        if count > 20:
+            return
 
-#             elif event.type == KEYDOWN:
-#                 # moving the piece sideways
-#                 if (event.key == K_LEFT or event.key == K_a) and isValidPosition(board, fallingPiece, adjX=-1):
-#                     fallingPiece['x'] -= 1
-#                     movingLeft = True
-#                     movingRight = False
-#                     lastMoveSidewaysTime = time.time()
+        # now take the action
+        if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
+            fallingPiece['x'] -= 1
+        elif action == RIGHT and isValidPosition(board, fallingPiece, adjX=1):
+            fallingPiece['x'] += 1
+        elif action == ROTATE:
+            fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
+            if not isValidPosition(board, fallingPiece):
+                fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
+        elif action == NOTHING:
+            pass
 
-#                 elif (event.key == K_RIGHT or event.key == K_d) and isValidPosition(board, fallingPiece, adjX=1):
-#                     fallingPiece['x'] += 1
-#                     movingRight = True
-#                     movingLeft = False
-#                     lastMoveSidewaysTime = time.time()
+        h = 0.0
 
-#                 # rotating the piece (if there is room to rotate)
-#                 elif (event.key == K_UP or event.key == K_w):
-#                     fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
-#                     if not isValidPosition(board, fallingPiece):
-#                         fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-#                 elif (event.key == K_q): # rotate the other direction
-#                     fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-#                     if not isValidPosition(board, fallingPiece):
-#                         fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
-
-#                 # making the piece fall faster with the down key
-#                 elif (event.key == K_DOWN or event.key == K_s):
-#                     movingDown = True
-#                     if isValidPosition(board, fallingPiece, adjY=1):
-#                         fallingPiece['y'] += 1
-#                     lastMoveDownTime = time.time()
-
-#                 # move the current piece all the way down
-#                 elif event.key == K_SPACE:
-#                     movingDown = False
-#                     movingLeft = False
-#                     movingRight = False
-#                     for i in range(1, BOARDHEIGHT):
-#                         if not isValidPosition(board, fallingPiece, adjY=i):
-#                             break
-#                     fallingPiece['y'] += i - 1
-
-#         # handle moving the piece because of user input
-#         if (movingLeft or movingRight) and time.time() - lastMoveSidewaysTime > MOVESIDEWAYSFREQ:
-#             if movingLeft and isValidPosition(board, fallingPiece, adjX=-1):
-#                 fallingPiece['x'] -= 1
-#             elif movingRight and isValidPosition(board, fallingPiece, adjX=1):
-#                 fallingPiece['x'] += 1
-#             lastMoveSidewaysTime = time.time()
-
-#         if movingDown and time.time() - lastMoveDownTime > MOVEDOWNFREQ and isValidPosition(board, fallingPiece, adjY=1):
-#             fallingPiece['y'] += 1
-#             lastMoveDownTime = time.time()
-
-        # let the piece fall if it is time to fall
-        if time.time() - lastFallTime > fallFreq:
-            # see if the piece has landed
-            
-#             deletePieceFromBoard(board, fallingPiece)
-            
-            if h != 0:
-                # model is a SGD regressor, a linear model that we can incrementally update
-                model.partial_fit(np.array([features]), np.array([h]))
-
-            
-            features, action = select_best_action(model, deepcopy(board), deepcopy(fallingPiece))
-            print(action)
-            
-            # now take the action
-            if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
-                fallingPiece['x'] -= 1
-            elif action == RIGHT and isValidPosition(board, fallingPiece, adjX=1):
-                fallingPiece['x'] += 1
-            elif action == ROTATE:
-                fallingPiece['rotation'] = (fallingPiece['rotation'] + 1) % len(PIECES[fallingPiece['shape']])
-                if not isValidPosition(board, fallingPiece):
-                    fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
-            elif action == NOTHING:
-                pass
-
-#             for line in board:
-#                 print(line)
-            
-            h = 0.0
-            pygame.event.clear()
-            
-            if not isValidPosition(board, fallingPiece, adjY=1):
-                # falling piece has landed, set it on the board
-                addToBoard(board, fallingPiece)
-                score += removeCompleteLines(board)
-                level, fallFreq = calculateLevelAndFallFreq(score)
-                fallingPiece = None
-            else:
-                # piece did not land, just move the piece down
-#                 addToBoard(board, fallingPiece)
-                fallingPiece['y'] += 1
-                lastFallTime = time.time()
+        if not isValidPosition(board, fallingPiece, adjY=1):
+            # falling piece has landed, set it on the board
+            addToBoard(board, fallingPiece)
+            score += removeCompleteLines(board)
+            level, fallFreq = calculateLevelAndFallFreq(score)
+            fallingPiece = None
+            delete = False
+        else:
+            # piece did not land, just move the piece down
+            fallingPiece['y'] += 1
+            addToBoard(board, fallingPiece)
+            lastFallTime = time.time()
+            delete = True
 
         # drawing everything on the screen
-        DISPLAYSURF.fill(BGCOLOR)
-        drawBoard(board)
-        drawStatus(score, level)
-        drawNextPiece(nextPiece)
-        if fallingPiece != None:
-            drawPiece(fallingPiece)
+#         DISPLAYSURF.fill(BGCOLOR)
+#         drawBoard(board)
+#         drawStatus(score, level)
+#         drawNextPiece(nextPiece)
+#         if fallingPiece != None:
+#             drawPiece(fallingPiece)
 
-        pygame.display.update()
-        FPSCLOCK.tick(FPS)
+#         pygame.display.update()
+#         FPSCLOCK.tick(FPS)
 
 
 def makeTextObjs(text, font, color):

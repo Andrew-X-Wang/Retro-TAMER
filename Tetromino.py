@@ -14,8 +14,8 @@ FPS = 25
 WINDOWWIDTH = 640
 WINDOWHEIGHT = 480
 BOXSIZE = 20         # 20
-BOARDWIDTH = 10      # 10
-BOARDHEIGHT = 20     # 20
+BOARDWIDTH = 6      # 10
+BOARDHEIGHT = 12     # 20
 BLANK = '.'
 
 MOVESIDEWAYSFREQ = 0.15
@@ -175,7 +175,7 @@ def convert_board_to_numbers(board):
             if elem == BLANK:
                 newline.append(0.0)
             else:
-                newline.append(1.0)
+                newline.append(elem + 1.0)
         numboard.append(np.array(newline))
     return np.array(numboard)
 
@@ -189,6 +189,8 @@ def create_feature_vec(currstate, nextstate, piece):
 #     print()
 #     for line in nexts:
 #         print(line)
+#     print()
+#     print(np.concatenate((currs.flatten(), nexts.flatten())))
 #     print()
     return np.concatenate((currs.flatten(), nexts.flatten()))
         
@@ -265,7 +267,7 @@ def main():
 #         else:
 #             pygame.mixer.music.load('tetrisc.mid')
 #         pygame.mixer.music.play(-1, 0.0)
-        runGame(model, features, h)
+        model = runGame(model, features, h)
 #         pygame.mixer.music.stop()
         showTextScreen('Game Over')
 
@@ -287,7 +289,8 @@ def runGame(model, features, h):
     
     ############### TAMER code ###################
     features_trace = []
-    h_trace = []    
+    h_trace = []
+#     delete = False
     ############### TAMER code ###################
     
     while True: # game loop
@@ -303,7 +306,7 @@ def runGame(model, features, h):
                 h_trace = np.array(h_trace)
                 model.partial_fit(features_trace, h_trace)
                 ############### TAMER code ###################
-                return # can't fit a new piece on the board, so game over
+                return model # can't fit a new piece on the board, so game over
 
         ################## TAMER code ######################################
             
@@ -402,16 +405,22 @@ def runGame(model, features, h):
 #             lastMoveDownTime = time.time()
 
         # let the piece fall if it is time to fall
-        if time.time() - lastFallTime > fallFreq:            
+        if time.time() - lastFallTime > fallFreq:
+            
+#             for line in board:
+#                 print(line)
+            
+#             if delete:
+#                 deletePieceFromBoard(board, fallingPiece)
+            
             if h != 0:
                 # model is a SGD regressor, a linear model that we can incrementally update
                 model.partial_fit(np.array([features]), np.array([h]))
                 features_trace.append(features)
                 h_trace.append(h)
 
-            
             features, action = select_best_action(model, deepcopy(board), deepcopy(fallingPiece))
-            print(action)
+#             print(action)
             
             # now take the action
             if action == LEFT and isValidPosition(board, fallingPiece, adjX=-1):
@@ -424,9 +433,6 @@ def runGame(model, features, h):
                     fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
             elif action == NOTHING:
                 pass
-
-#             for line in board:
-#                 print(line)
             
             h = 0.0
             pygame.event.clear()
@@ -437,11 +443,13 @@ def runGame(model, features, h):
                 score += removeCompleteLines(board)
                 level, fallFreq = calculateLevelAndFallFreq(score)
                 fallingPiece = None
+#                 delete = False
             else:
                 # piece did not land, just move the piece down
-#                 addToBoard(board, fallingPiece)
                 fallingPiece['y'] += 1
+#                 addToBoard(board, fallingPiece)
                 lastFallTime = time.time()
+#                 delete = True
 
         # drawing everything on the screen
         DISPLAYSURF.fill(BGCOLOR)

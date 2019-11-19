@@ -9,13 +9,14 @@ import numpy as np
 from copy import deepcopy
 import sklearn
 import sklearn.linear_model
+import sklearn.neural_network
 
 FPS = 25
 WINDOWWIDTH = 640
 WINDOWHEIGHT = 480
 BOXSIZE = 20         # 20
-BOARDWIDTH = 6      # 10
-BOARDHEIGHT = 12     # 20
+BOARDWIDTH = 10      # 10
+BOARDHEIGHT = 20     # 20
 BLANK = '.'
 
 MOVESIDEWAYSFREQ = 0.15
@@ -165,7 +166,8 @@ LEFT = 0
 RIGHT = 1
 ROTATE = 2
 NOTHING = 3
-ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING]
+DROP = 4
+ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING, DROP]
 
 def convert_board_to_numbers(board):
     numboard = []
@@ -173,9 +175,9 @@ def convert_board_to_numbers(board):
         newline = []
         for elem in line:
             if elem == BLANK:
-                newline.append(0.0)
+                newline.append(-1.0)
             else:
-                newline.append(elem + 1.0)
+                newline.append(1.0)
         numboard.append(np.array(newline))
     return np.array(numboard)
 
@@ -206,6 +208,9 @@ def generate_next_board(board, action, fallingPiece):
             fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
     elif action == NOTHING:
         pass
+    elif action == DROP:
+        while isValidPosition(board, fallingPiece, adjY=1):
+            fallingPiece['y'] += 1
     if isValidPosition(board, fallingPiece, adjY=1):
         fallingPiece['y'] += 1
     
@@ -254,6 +259,7 @@ def main():
     
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
+#     model = sklearn.neural_network.MLPRegressor(hidden_layer_sizes = 50)
     features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
     h = 0.0
     model.partial_fit(np.array([features]), np.array([-1.0]))
@@ -302,6 +308,7 @@ def runGame(model, features, h):
 
             if not isValidPosition(board, fallingPiece):
                 ############### TAMER code ###################
+                print("fitting")
                 features_trace = np.array(features_trace)
                 h_trace = np.array(h_trace)
                 model.partial_fit(features_trace, h_trace)
@@ -318,8 +325,12 @@ def runGame(model, features, h):
             if event.type == KEYUP:
                 if event.key == K_LEFT:
                     h = -1.0
+                    print("given")
+                    print(h)
                 elif event.key == K_RIGHT:
                     h = 1.0
+                    print("given")
+                    print(h)
                 elif (event.key == K_p):
 #                     # Pausing the game
                     DISPLAYSURF.fill(BGCOLOR)
@@ -415,6 +426,8 @@ def runGame(model, features, h):
             
             if h != 0:
                 # model is a SGD regressor, a linear model that we can incrementally update
+                print("feedback")
+                print(h)
                 model.partial_fit(np.array([features]), np.array([h]))
                 features_trace.append(features)
                 h_trace.append(h)
@@ -433,6 +446,9 @@ def runGame(model, features, h):
                     fallingPiece['rotation'] = (fallingPiece['rotation'] - 1) % len(PIECES[fallingPiece['shape']])
             elif action == NOTHING:
                 pass
+            elif action == DROP:
+                while isValidPosition(board, fallingPiece, adjY=1):
+                    fallingPiece['y'] += 1
             
             h = 0.0
             pygame.event.clear()

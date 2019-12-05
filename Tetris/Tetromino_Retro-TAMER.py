@@ -166,6 +166,8 @@ RIGHT = 1
 ROTATE = 2
 NOTHING = 3
 ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING]
+MEM_LEN = 5
+FEATURE_SIZE = (MEM_LEN + 1) *BOARDHEIGHT*BOARDWIDTH + 2 * len(PIECES)
 
 def convert_board_to_numbers(board):
     numboard = []
@@ -179,18 +181,44 @@ def convert_board_to_numbers(board):
         numboard.append(np.array(newline))
     return np.array(numboard)
 
-def create_feature_vec(currstate, nextstate, piece):
+def one_hot_encode_piece(piece):
+    piece_OHE = np.zeros(len(PIECES))
+    for i, j in enumerate(PIECES):
+        if piece == PIECES[j]:
+            piece_OHE[i] = 1
+            
+    return piece_OHE
+
+# Feature made of current board state, next board state, @TODO: current piece, next piece, action taken to get to next board state
+def create_feature_vec(paststates, nextstate, fallingPiece, nextPiece):
     # takes two states and concatenated them into a feature vector for linear model
-    addToBoard(currstate, piece)
-    currs = convert_board_to_numbers(currstate)
+    addToBoard(paststates[-1], fallingPiece)
+    updated_laststate = deepcopy(paststates[-1])
+#     currs = convert_board_to_numbers(currstate)
+    for board_ind in range(len(paststates)):
+        paststates[board_ind] = convert_board_to_numbers(paststates[board_ind])
     nexts = convert_board_to_numbers(nextstate)
+    
+    falling_piece_OHE = one_hot_encode_piece(fallingPiece)
+    next_piece_OHE = one_hot_encode_piece(nextPiece)
+    
 #     for line in currs:
 #         print(line)
 #     print()
 #     for line in nexts:
 #         print(line)
 #     print()
-    return np.concatenate((currs.flatten(), nexts.flatten()))
+    feature_vec = np.concatenate((falling_piece_OHE, next_piece_OHE))
+    for board in paststates:
+        feature_vec = np.concatenate((feature_vec, board.flatten()))
+    feature_vec = np.concatenate((feature_vec, nexts.flatten()))
+    
+    # Unfortunately means for the first [5 - 1] predictions there will be completely empty boards in the feature_vec due to nonexistent history
+    if len(feature_vec) < FEATURE_SIZE:
+        feature_vec = np.concatenate((np.zeros(FEATURE_SIZE - len(feature_vec)), feature_vec))
+                
+    return feature_vec, updated_laststate
+#     return np.concatenate((currs.flatten(), nexts.flatten())
         
 def generate_next_board(board, action, fallingPiece):
     nextboard = deepcopy(board)
@@ -208,16 +236,17 @@ def generate_next_board(board, action, fallingPiece):
         fallingPiece['y'] += 1
     
     addToBoard(nextboard, fallingPiece)
-    score = removeCompleteLines(nextboard)
+#     score = removeCompleteLines(nextboard)
     return nextboard
     
 
-def select_best_action(model, board, fallingPiece):
+def select_best_action(model, last_n_boards, board, fallingPiece, nextPiece):
     action_values = []
     origPiece = deepcopy(fallingPiece)
     for action in ACTIONS:
         nextboard = generate_next_board(board, action, deepcopy(origPiece))
-        features = create_feature_vec(deepcopy(board), nextboard, origPiece)
+        # @TODO: Laststate unused, should be that way but is there a better way than leaving as a placeholder for function return?
+        features, laststate = create_feature_vec(deepcopy(last_n_boards), nextboard, origPiece, nextPiece)
         
         # actions and action values are in parallel
         # indices:
@@ -231,9 +260,11 @@ def select_best_action(model, board, fallingPiece):
         
     action_values = np.array(action_values)
     best_action = ACTIONS[np.random.choice(np.flatnonzero(action_values == action_values.max()))]
-    nextboard = generate_next_board(board, best_action, deepcopy(origPiece))
+    nextboard = generate_next_board(board, best_action, deepcopy(origPiece)) # Is it necessary to deepcopy again?
     
-    features = create_feature_vec(board, nextboard, origPiece)
+    features, last_state = create_feature_vec(deepcopy(last_n_boards), nextboard, origPiece, nextPiece)
+    #@TODO: A bit messy right now, because create_feature_vec is the only place that updates [a copy of] the board before the piece sets at the bottom, and so last_n_boards is only updated here
+    last_n_boards[-1] = last_state
     
     return features, best_action
 
@@ -252,7 +283,7 @@ def main():
     
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
-    features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
+    features = np.zeros(FEATURE_SIZE)
     h = 0.0
     model.partial_fit(np.array([features]), np.array([-1.0]))
     
@@ -285,9 +316,12 @@ def runGame(model, features, h):
     fallingPiece = getNewPiece()
     nextPiece = getNewPiece()
     
+    
     ############### TAMER code ###################
     features_trace = []
     h_trace = []    
+    
+    last_n_boards = []
     ############### TAMER code ###################
     
     while True: # game loop
@@ -402,6 +436,7 @@ def runGame(model, features, h):
 #             lastMoveDownTime = time.time()
 
         # let the piece fall if it is time to fall
+    
         if time.time() - lastFallTime > fallFreq:            
             if h != 0:
                 # model is a SGD regressor, a linear model that we can incrementally update
@@ -409,8 +444,12 @@ def runGame(model, features, h):
                 features_trace.append(features)
                 h_trace.append(h)
 
+            #Adding current board to last_n_boards
+            last_n_boards.append(deepcopy(board))
+            if len(last_n_boards) > MEM_LEN:
+                last_n_boards.pop(0)
             
-            features, action = select_best_action(model, deepcopy(board), deepcopy(fallingPiece))
+            features, action = select_best_action(model, last_n_boards, deepcopy(board), deepcopy(fallingPiece), deepcopy(nextPiece))
             print(action)
             
             # now take the action
@@ -453,6 +492,8 @@ def runGame(model, features, h):
 
         pygame.display.update()
         FPSCLOCK.tick(FPS)
+        
+        
 
 
 def makeTextObjs(text, font, color):

@@ -1,12 +1,6 @@
 # Retro-TAMER
 Retroactive Feedback Assignment within the TAMER Framework
 
-@TODO:
-  - Choosing a domain for Tetris
-    - Interested in: state representation
-  - Candidate: OpenAI Gym Tetris
-  
-  - Can we build TAMER off of the state-action representation and environment? Can we map visuals to a particular state in the state-action space?
 
 
 For Checkpoint 1:
@@ -23,6 +17,6 @@ Domain Selection:
                   - Difficult to do: @TODO
 
 Next Steps:
-  - Implement TAMER in own module with SGDRegressor for a supervised learner, partial_fit(). Follow paper implementation as close as possible
-    - Feature representation: concatenation of previous state and next state to be input into the supervised learner; greedily choose action that maximizes output of SGDRegressor given input of feature vectors.
-    - DQN - borrow and adapt implementation from TetrisRL to Tetromino
+  - Implement TAMER in own module with SGDRegressor for a supervised learner, partial_fit(). Follow paper implementation as close as possible --> done, but learns very poorly
+    - Feature representation: concatenation of previous state and next state to be input into the supervised learner; greedily choose action that maximizes output of SGDRegressor given input of feature vectors. --> done, but learns very poorly
+    - DQN - borrow and adapt implementation from TetrisRL to Tetromino --> in progress

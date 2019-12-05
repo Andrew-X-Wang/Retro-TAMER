@@ -167,7 +167,7 @@ RIGHT = 1
 ROTATE = 2
 NOTHING = 3
 DROP = 4
-ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING, DROP]
+ACTIONS = [LEFT, RIGHT, ROTATE, NOTHING] #, DROP]
 
 def convert_board_to_numbers(board):
     numboard = []

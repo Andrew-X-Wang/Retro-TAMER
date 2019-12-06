@@ -151,6 +151,7 @@ def assign_credit(history):
 
 if __name__ == "__main__":
     env = gym.make('MountainCar-v0')
+    env.seed(seed=50)
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
     history = [] # Last is newest, first is oldest
@@ -176,16 +177,23 @@ if __name__ == "__main__":
     scores = 0
     for e in range(EPISODES):
         state = env.reset()
+        init_state = state
         state = np.reshape(state, [1, state_size])
         flag = 0
         h = 0.0
         count = 0
+        
+        full_state_history = []
+        full_action_history = []
+        
         while True:
             count += 1
             # uncomment this to see the actual rendering 
             env.render()            
             action = agent.act(env, state)
 #             if count % 10 == 0:
+            full_action_history.append(action)
+            full_state_history.append(env.state)
             print(action)
             
             next_state, reward, done, info = env.step(action)
@@ -230,16 +238,14 @@ if __name__ == "__main__":
                 # get all state, action, reward, next_state, done that we need to train on
                 
                 # agent.remember on all of them from 0.
-                for state, action, next_state, done, action_time in to_remember: # to_remember is list of tuples of data to assign credit to
+                for s, a, next_s, d, act_time in to_remember: # to_remember is list of tuples of data to assign credit to
                     # More nuanced time steps?
                     reward = h / len(to_remember)
-                    agent.remember(state, action, reward, next_state, done)
+                    agent.remember(s, a, reward, next_s, d)
                 
                 agent.replay(len(to_remember))
                 agent.memory = deque(maxlen=2000)
                 h = 0.0
-                
-            
             
             state = next_state
             scores += reward
@@ -253,15 +259,49 @@ if __name__ == "__main__":
             # print("Scores: " + str(scores))
             # print("Reward: " + str(reward))
 
-
-#             if len(agent.memory) > batch_size:
-#                 agent.replay(batch_size)
-#                 # Reset memory? Need to keep and queue/dequeue appropriately
-#                 agent.memory = deque(maxlen=2000)
+            if len(agent.memory) > batch_size:
+                agent.replay(batch_size)
+                # Reset memory? Need to keep and queue/dequeue appropriately
+                agent.memory = deque(maxlen=2000)
                
+        # Simulation
+        env.seed(seed=50)
+        sim_init_state = env.reset()
+        print(sim_init_state)
+        print(init_state)
+        if (sim_init_state[0] == init_state[0] and sim_init_state[1] == init_state[1]):
+            print("Same initial states:") #yaaas
+            print("sim_init_state:")
+            print(sim_init_state)
+            print("init_state:")
+            print(init_state)
+            print("")
             
+        full_sim_state_history = []
+        for a in full_action_history:
+            print("action")
+            print(a)
+            
+            full_sim_state_history.append(env.state)
+            env.step(a)
+            env.render()
+            
+        if (len(full_state_history) != len(full_sim_state_history)):
+            print("Mismatching history lengths:")
+            print("Length of State History: " + str(len(full_state_history)))
+            print("Length of Sim State History: " + str(len(full_sim_state_history)) + "\n")
+            exit(1)
+            
+        for i in range(len(full_state_history)):
+            print("Action taken: " + str(full_action_history[i]))
+            print("State History at " + str(i))
+            print(full_state_history[i])
+            print("Sim State History at " + str(i))
+            print(full_sim_state_history[i])
+
         if flag == 0:
             print("episode: {}/{}, score: {}, e: {:.2}".format(e, EPISODES, t, agent.epsilon))      
         if e % 100 == 0:
             print('saving the model')
 #             agent.save("mountain_car-dqn.h5")
+        time.sleep(5)

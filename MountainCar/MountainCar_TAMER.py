@@ -2,16 +2,20 @@ import random
 import gym
 import numpy as np
 from collections import deque
-from keras.models import Sequential
-from keras.layers import Dense, Activation,Dropout
-from keras.optimizers import Adam
-from keras import backend as K
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Activation,Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import backend as K
 import matplotlib.pyplot as plt
+from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.metrics.pairwise import polynomial_kernel
+from sklearn.linear_model import SGDRegressor
 
 import code
 import keyboard
 import time
 import copy
+import math
 
 EPISODES = 400
 
@@ -21,27 +25,31 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
-        self.gamma = 0.9 #0.95    # discount rate
+        self.gamma = 0.0 #0.95    # discount rate
         self.epsilon = 0.0 #1.0  # exploration rate
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.997
         self.learning_rate = 0.002
         self.model = self._build_model()
         self.target_model = self._build_model()
-        self.update_target_model()
+#         self.update_target_model()
 
     def _build_model(self):
-        # Neural Net for Deep-Q learning Model
-        model = Sequential()
-        model.add(Dense(64, input_dim=2))
-        model.add(Activation('relu'))
+#         # Neural Net for Deep-Q learning Model
+#         model = Sequential()
+#         model.add(Dense(64, input_dim=2))
+#         model.add(Activation('relu'))
 
-        model.add(Dense(64))
-        model.add(Activation('relu'))
+# #         model.add(Dense(64))
+# #         model.add(Activation('relu'))
 
-        model.add(Dense(self.action_size, activation='linear'))
-        model.compile(loss="mean_squared_error",
-                      optimizer=Adam(lr=self.learning_rate))
+#         model.add(Dense(self.action_size, activation='linear'))
+#         model.compile(loss="mean_squared_error",
+#                       optimizer=Adam(lr=self.learning_rate))
+        model = SGDRegressor()
+        features = np.zeros(4)
+        model.partial_fit(np.array([features]), np.array([0.0]))
+        
         return model
 
     def update_target_model(self):
@@ -51,29 +59,74 @@ class DQNAgent:
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
 
-    def act(self, state):
+    def act(self, env, state):
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
-        act_values = self.model.predict(state)
-        return np.argmax(act_values[0])  # returns action
+        
+        action_values = []
+        for action in range(self.action_size):
+            features = self.get_rbf_features(env, action)
+            action_values.append(self.model.predict(np.array([features]))[0])
+            
+#         print(action_values)
+        action_values = np.array(action_values)
+        return np.random.choice(np.flatnonzero(action_values == action_values.max())) #np.argmax(action_values)  # returns action
 
     def replay(self, batch_size):
         minibatch = random.sample(self.memory, batch_size)
+        features = []
+        rewards = []
         for state, action, reward, next_state, done in minibatch:
-            target = self.model.predict(state)
-            if done:
-                target[0][action] = reward
-            else:
-                Q_future  = self.target_model.predict(next_state)[0]
-                target[0][action] = reward + self.gamma * np.amax(Q_future)
-            self.model.fit(state, target, epochs=1, verbose=0)
+            features.append(np.array(self.get_rbf_features_with_next_state(state[0], next_state[0])))
+            rewards.append(reward)
+#             target = self.model.predict(state)
+#             if done:
+#                 target[0][action] = reward
+#             else:
+#                 Q_future  = self.target_model.predict(next_state)[0]
+#                 target[0][action] = reward + self.gamma * np.amax(Q_future)
+                
+#             self.model.fit(state, target, epochs=1, verbose=0)
+        
+#         print(features)
+#         print(rewards)
+        self.model.partial_fit(np.array(features), np.array(rewards))
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def save(self, name):
         self.model.save(name)
-        
 
+    def simulate_step(self, env, action):
+        assert env.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
+
+        position, velocity = env.state
+        velocity += (action-1)*env.force + math.cos(3*position)*(-env.gravity)
+        velocity = np.clip(velocity, -env.max_speed, env.max_speed)
+        position += velocity
+        position = np.clip(position, env.min_position, env.max_position)
+        if (position==env.min_position and velocity<0): velocity = 0
+
+        done = bool(position >= env.goal_position and velocity >= env.goal_velocity)
+        reward = -1.0
+
+    #     self.state = (position, velocity)
+        next_state = (position, velocity)
+        return np.array(next_state), reward, done, {}
+
+    def get_rbf_features(self, env, action):
+        next_state, reward, done, info = self.simulate_step(env, action)
+        next_state = [[next_state[0]], [next_state[1]]]
+        state = [[env.state[0]], [env.state[1]]]
+        return polynomial_kernel(state, next_state, degree=2).flatten()
+#         return rbf_kernel(state, next_state).flatten()
+    
+    def get_rbf_features_with_next_state(self, state, next_state):
+        next_state = [[next_state[0]], [next_state[1]]]
+        state = [[state[0]], [env.state[1]]]
+        return polynomial_kernel(state, next_state, degree=2).flatten()
+#         return rbf_kernel(state, next_state).flatten()
+        
     
 CREDIT_MIN_TIME = 0.2
 CREDIT_MAX_TIME = 0.6
@@ -126,10 +179,15 @@ if __name__ == "__main__":
         state = np.reshape(state, [1, state_size])
         flag = 0
         h = 0.0
+        count = 0
         while True:
+            count += 1
             # uncomment this to see the actual rendering 
-            env.render()
-            action = agent.act(state)
+            env.render()            
+            action = agent.act(env, state)
+#             if count % 10 == 0:
+            print(action)
+            
             next_state, reward, done, info = env.step(action)
             done = bool(env.state[0] >= env.goal_position and env.state[1] >= env.goal_velocity)
             
@@ -168,7 +226,7 @@ if __name__ == "__main__":
             if h != 0:
                 print("credit assigned")
                 to_remember = assign_credit(history) #@TODO: not implemented, use uniform distribution from min to max to assign credit
-                print(len(to_remember))
+#                 print(len(to_remember))
                 # get all state, action, reward, next_state, done that we need to train on
                 
                 # agent.remember on all of them from 0.
@@ -181,16 +239,13 @@ if __name__ == "__main__":
                 agent.memory = deque(maxlen=2000)
                 h = 0.0
                 
-                
-            
-#             agent.remember(state, action, reward, next_state, done, curr_time)
             
             
             state = next_state
             scores += reward
             if done:
                 flag = 1
-                agent.update_target_model()
+#                 agent.update_target_model()
                 print("episode: {}/{}, score: {}, e: {:.2}"
                       .format(e, EPISODES, scores, agent.epsilon))
                 break
@@ -209,4 +264,4 @@ if __name__ == "__main__":
             print("episode: {}/{}, score: {}, e: {:.2}".format(e, EPISODES, t, agent.epsilon))      
         if e % 100 == 0:
             print('saving the model')
-            agent.save("mountain_car-dqn.h5")
+#             agent.save("mountain_car-dqn.h5")

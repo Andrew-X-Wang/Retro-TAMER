@@ -194,7 +194,8 @@ def create_feature_vec(currstate, nextstate, piece):
 #     print()
 #     print(np.concatenate((currs.flatten(), nexts.flatten())))
 #     print()
-    return np.concatenate((currs.flatten(), nexts.flatten()))
+    
+    return (np.array(currs) - np.array(nexts)).flatten() #np.concatenate((currs.flatten(), nexts.flatten()))
         
 def generate_next_board(board, action, fallingPiece):
     nextboard = deepcopy(board)
@@ -260,7 +261,7 @@ def main():
     ############### TAMER code ################################
     model = sklearn.linear_model.SGDRegressor()
 #     model = sklearn.neural_network.MLPRegressor(hidden_layer_sizes = 50)
-    features = np.zeros(2*BOARDHEIGHT*BOARDWIDTH)
+    features = np.zeros(BOARDHEIGHT*BOARDWIDTH)
     h = 0.0
     model.partial_fit(np.array([features]), np.array([-1.0]))
     

@@ -130,6 +130,7 @@ class DQNAgent:
     
 CREDIT_MIN_TIME = 0.2
 CREDIT_MAX_TIME = 0.6
+STOP_TIME = 0.075
         
     
 def update_history(history, state, action, next_state, done, curr_time):
@@ -151,23 +152,10 @@ def assign_credit(history):
 
 if __name__ == "__main__":
     env = gym.make('MountainCar-v0')
-    env.seed(seed=50)
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
-    history = [] # Last is newest, first is oldest
-
 
     agent = DQNAgent(state_size, action_size)
-#     ############### TAMER code ################################
-#     model = sklearn.linear_model.SGDRegressor()
-# #     model = sklearn.neural_network.MLPRegressor(hidden_layer_sizes = 50)
-#     features = np.zeros(state_size)
-#     h = 0.0
-#     model.partial_fit(np.array([features]), np.array([-1.0]))
-    
-#     memory = {"Boards": [], "Scores": [], "Levels": []}
-
-#     ############### TAMER code ################################
 
     print('state size:' ,state_size)
     print('action size: ', action_size)
@@ -175,25 +163,23 @@ if __name__ == "__main__":
     batch_size = 128
 
     scores = 0
+    count_seed = 0
     for e in range(EPISODES):
+        env.seed(seed=count_seed)
         state = env.reset()
-        init_state = state
+        init_state = copy.deepcopy(state)
         state = np.reshape(state, [1, state_size])
         flag = 0
         h = 0.0
         count = 0
         
-        full_state_history = []
-        full_action_history = []
-        
+        full_history = []
+        history = [] # Last is newest, first is oldest
         while True:
             count += 1
             # uncomment this to see the actual rendering 
             env.render()            
             action = agent.act(env, state)
-#             if count % 10 == 0:
-            full_action_history.append(action)
-            full_state_history.append(env.state)
             print(action)
             
             next_state, reward, done, info = env.step(action)
@@ -201,17 +187,9 @@ if __name__ == "__main__":
             
             # Note: assigns multiple times
             if (keyboard.is_pressed('left')):
-                h = -10.0
+                h = -1.0
             elif (keyboard.is_pressed('right')):
-                h = 10.0
-#             else:
-#                 h = 0.0
-
-            if next_state[1] > state[0][1] and next_state[1]>0 and state[0][1]>0:
-                reward += 15
-            elif next_state[1] < state[0][1] and next_state[1]<=0 and state[0][1]<=0:
-                reward +=15
-            
+                h = 1.0           
 
             # give more reward if the cart reaches the flag in 200 steps
             if done:
@@ -221,20 +199,17 @@ if __name__ == "__main__":
                 print("goal position " + str(env.goal_position))
                 print("goal velocity " + str(env.goal_velocity))
                 print(bool(env.state[0] >= env.goal_position and env.state[1] >= env.goal_velocity))
-#                 reward = reward + 10000
-            else:
-                # put a penalty if the no of t steps is more
-#                 reward = reward - 10  
-                pass
+            
             next_state = np.reshape(next_state, [1, state_size])
             
             
             curr_time = time.time()
+            full_history.append((state, action, next_state, done, curr_time))
             update_history(history, state, action, next_state, done, curr_time)
             if h != 0:
+                time.sleep(STOP_TIME)
                 print("credit assigned")
-                to_remember = assign_credit(history) #@TODO: not implemented, use uniform distribution from min to max to assign credit
-#                 print(len(to_remember))
+                to_remember = assign_credit(history)
                 # get all state, action, reward, next_state, done that we need to train on
                 
                 # agent.remember on all of them from 0.
@@ -251,21 +226,13 @@ if __name__ == "__main__":
             scores += reward
             if done:
                 flag = 1
-#                 agent.update_target_model()
                 print("episode: {}/{}, score: {}, e: {:.2}"
                       .format(e, EPISODES, scores, agent.epsilon))
                 break
             
-            # print("Scores: " + str(scores))
-            # print("Reward: " + str(reward))
-
-            if len(agent.memory) > batch_size:
-                agent.replay(batch_size)
-                # Reset memory? Need to keep and queue/dequeue appropriately
-                agent.memory = deque(maxlen=2000)
                
         # Simulation
-        env.seed(seed=50)
+        env.seed(seed=count_seed)
         sim_init_state = env.reset()
         print(sim_init_state)
         print(init_state)
@@ -277,27 +244,59 @@ if __name__ == "__main__":
             print(init_state)
             print("")
             
-        full_sim_state_history = []
-        for a in full_action_history:
-            print("action")
-            print(a)
+#         full_sim_state_history = []
+#         for a in full_action_history:
+#             print("action")
+#             print(a)
             
-            full_sim_state_history.append(env.state)
-            env.step(a)
-            env.render()
+#             full_sim_state_history.append(env.state)
+#             env.step(a)
+#             env.render()
+        
+        # allow human to move forward in the simulation by pressing the "up" key
+        max_actions = len(full_history)
+        count_actions = 0
+        h = 0.0
+        num_remembered = 0
+        while True:
+            if count_actions >= max_actions:
+                break
+            if keyboard.is_pressed('up'):
+                s, action, next_s, d, act_time  = full_history[count_actions]
+                print(action)
+                env.step(action)
+                env.render()
+                count_actions += 1
             
-        if (len(full_state_history) != len(full_sim_state_history)):
-            print("Mismatching history lengths:")
-            print("Length of State History: " + str(len(full_state_history)))
-            print("Length of Sim State History: " + str(len(full_sim_state_history)) + "\n")
-            exit(1)
+            if (keyboard.is_pressed('left')):
+                h = -1.0
+            elif (keyboard.is_pressed('right')):
+                h = 1.0
             
-        for i in range(len(full_state_history)):
-            print("Action taken: " + str(full_action_history[i]))
-            print("State History at " + str(i))
-            print(full_state_history[i])
-            print("Sim State History at " + str(i))
-            print(full_sim_state_history[i])
+            if h != 0.0:
+                time.sleep(STOP_TIME)
+                print("credit assigned")
+                reward = h
+                agent.remember(s, action, reward, next_s, d)  
+                num_remembered += 1
+                h = 0.0
+        
+        if num_remembered > 0:
+            agent.replay(num_remembered)
+            agent.memory = deque(maxlen=2000)
+            
+#         if (len(full_state_history) != len(full_sim_state_history)):
+#             print("Mismatching history lengths:")
+#             print("Length of State History: " + str(len(full_state_history)))
+#             print("Length of Sim State History: " + str(len(full_sim_state_history)) + "\n")
+#             exit(1)
+            
+#         for i in range(len(full_state_history)):
+#             print("Action taken: " + str(full_action_history[i]))
+#             print("State History at " + str(i))
+#             print(full_state_history[i])
+#             print("Sim State History at " + str(i))
+#             print(full_sim_state_history[i])
 
         if flag == 0:
             print("episode: {}/{}, score: {}, e: {:.2}".format(e, EPISODES, t, agent.epsilon))      
@@ -305,3 +304,4 @@ if __name__ == "__main__":
             print('saving the model')
 #             agent.save("mountain_car-dqn.h5")
         time.sleep(5)
+        count_seed += 1

@@ -130,6 +130,7 @@ class DQNAgent:
     
 CREDIT_MIN_TIME = 0.2
 CREDIT_MAX_TIME = 0.6
+CREDIT_INTERVAL_TIME = 0.4
 STOP_TIME = 0.1
 
 ACTION_NAMES = ["LEFT", "STILL", "RIGHT"]        
@@ -150,18 +151,20 @@ def assign_credit(history):
         
     return to_remember
 
-def save_results(trace_timesteps, trace_feedbacks, filename):
-    table = [["Timesteps", "Feedbacks"]]
+def save_results(trace_timesteps, trace_feedback, trace_retro_feedbacks, filename):
+    table = [["Timesteps", "Feedbacks", "Retro-Feedbacks"]]
     
     for i in range(len(trace_timesteps)):
         row = []
         row.append(trace_timesteps[i])
-        row.append(trace_feedbacks[i])
+        row.append(trace_feedback[i])
+        row_append(tracte_retro_feedback[i])
         table.append(row)
     
     with open(filename, "w+") as csvfile:
         writer = csv.writer(csvfile)
         [writer.writerow(r) for r in table]
+        
         
 
 if __name__ == "__main__":
@@ -171,12 +174,13 @@ if __name__ == "__main__":
 
     agent = DQNAgent(state_size, action_size)
 
-    print('state size: ', state_size)
+    print('state size:' ,state_size)
     print('action size: ', action_size)
     done = False
     batch_size = 128
     trace_timesteps = []
     trace_feedbacks = []
+    trace_retro_feedbacks = []
     scores = 0
     count_seed = 0
     for e in range(EPISODES):
@@ -185,7 +189,7 @@ if __name__ == "__main__":
             user_input = input("Continue training? [y/n]: ")
             if user_input == "n":
                 name = input("Please enter your name: ")
-                filename = "results/TAMER_" + name + ".csv"
+                filename = "results/Retro_TAMER_single_" + name + ".csv"
                 save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename)
                 legal_input = True
                 exit(1)
@@ -258,80 +262,83 @@ if __name__ == "__main__":
                 print("episode: {}/{}, score: {}, e: {:.2}"
                       .format(e, EPISODES, scores, agent.epsilon))
                 break
-
+            
         trace_timesteps.append(count)
         trace_feedbacks.append(num_feedbacks)
-               
+        
         # Simulation
-#         env.seed(seed=count_seed)
-#         sim_init_state = env.reset()
-# #         print(sim_init_state)
-# #         print(init_state)
-# #         if (sim_init_state[0] == init_state[0] and sim_init_state[1] == init_state[1]):
-# #             print("Same initial states:") #yaaas
-# #             print("sim_init_state:")
-# #             print(sim_init_state)
-# #             print("init_state:")
-# #             print(init_state)
-# #             print("")
+        env.seed(seed=count_seed)
+        sim_init_state = env.reset()
+#         print(sim_init_state)
+#         print(init_state)
+#         if (sim_init_state[0] == init_state[0] and sim_init_state[1] == init_state[1]):
+#             print("Same initial states:") #yaaas
+#             print("sim_init_state:")
+#             print(sim_init_state)
+#             print("init_state:")
+#             print(init_state)
+#             print("")
             
-# # #         full_sim_state_history = []
-# # #         for a in full_action_history:
-# # #             print("action")
-# # #             print(a)
+# #         full_sim_state_history = []
+# #         for a in full_action_history:
+# #             print("action")
+# #             print(a)
             
-# # #             full_sim_state_history.append(env.state)
-# # #             env.step(a)
-# # #             env.render()
+# #             full_sim_state_history.append(env.state)
+# #             env.step(a)
+# #             env.render()
         
-#         # allow human to move forward in the simulation by pressing the "up" key
-#         max_actions = len(full_history)
-#         count_actions = 0
-#         h = 0.0
-#         num_remembered = 0
-#         while True:
-#             if count_actions >= max_actions:
-#                 break
-#             if keyboard.is_pressed('up'):
-#                 s, action, next_s, d, act_time  = full_history[count_actions]
-#                 print(action)
-#                 env.step(action)
-#                 env.render()
-#                 count_actions += 1
+        # allow human to move forward in the simulation by pressing the "up" key
+        max_actions = len(full_history)
+        count_actions = 0
+        h = 0.0
+        num_remembered = 0
+        while True:
+            if count_actions >= max_actions:
+                break
+            if keyboard.is_pressed('up'):
+                s, action, next_s, d, act_time  = full_history[count_actions]
+                print(ACTION_NAMES[action])
+                env.step(action)
+                env.render()
+                count_actions += 1
             
-#             if (keyboard.is_pressed('left')):
-#                 h = -1.0
-#             elif (keyboard.is_pressed('right')):
-#                 h = 1.0
+            if (keyboard.is_pressed('left')):
+                h = -1.0
+            elif (keyboard.is_pressed('right')):
+                h = 1.0
             
-#             if h != 0.0:
-#                 time.sleep(STOP_TIME)
-#                 print("credit assigned")
-#                 reward = h
-#                 agent.remember(s, action, reward, next_s, d)  
-#                 num_remembered += 1
-#                 h = 0.0
+            if h != 0.0:
+                time.sleep(STOP_TIME)
+                print("credit assigned")
+                reward = h
+                agent.remember(s, action, reward, next_s, d)  
+                num_remembered += 1
+                h = 0.0
         
-#         if num_remembered > 0:
-#             agent.replay(num_remembered)
-#             agent.memory = deque(maxlen=2000)
+        if num_remembered > 0:
+            agent.replay(num_remembered)
+            agent.memory = deque(maxlen=2000)
             
-# #         if (len(full_state_history) != len(full_sim_state_history)):
-# #             print("Mismatching history lengths:")
-# #             print("Length of State History: " + str(len(full_state_history)))
-# #             print("Length of Sim State History: " + str(len(full_sim_state_history)) + "\n")
-# #             exit(1)
+        trace_retro_feedbacks.append(num_retro_feedbacks) 
             
-# #         for i in range(len(full_state_history)):
-# #             print("Action taken: " + str(full_action_history[i]))
-# #             print("State History at " + str(i))
-# #             print(full_state_history[i])
-# #             print("Sim State History at " + str(i))
-# #             print(full_sim_state_history[i])
+#         if (len(full_state_history) != len(full_sim_state_history)):
+#             print("Mismatching history lengths:")
+#             print("Length of State History: " + str(len(full_state_history)))
+#             print("Length of Sim State History: " + str(len(full_sim_state_history)) + "\n")
+#             exit(1)
+            
+#         for i in range(len(full_state_history)):
+#             print("Action taken: " + str(full_action_history[i]))
+#             print("State History at " + str(i))
+#             print(full_state_history[i])
+#             print("Sim State History at " + str(i))
+#             print(full_sim_state_history[i])
 
         if flag == 0:
             print("episode: {}/{}, score: {}, e: {:.2}".format(e, EPISODES, t, agent.epsilon))      
-        if e % 100 == 0:
-            print('saving the model')
+#         if e % 100 == 0:
+#             print('saving the model')
 #             agent.save("mountain_car-dqn.h5")
-
+        time.sleep(2)
+        count_seed += 1

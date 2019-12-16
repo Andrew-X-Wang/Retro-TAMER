@@ -16,6 +16,7 @@ import time
 import copy
 import math
 import csv
+import sys
 
 EPISODES = 400
 
@@ -163,14 +164,32 @@ def assign_credit_retro(history):
     return to_remember
 
 # saves results in csv file
-def save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename):
-    table = [["Timesteps", "Feedbacks", "Retro-Feedbacks"]]
+def save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, trainer_experience, first_trial, filename):
+    table = [["Timesteps", "Feedbacks", "Retro-Feedbacks", "Experience Level", "First Trial?"]]
     
     for i in range(len(trace_timesteps)):
         row = []
         row.append(trace_timesteps[i])
         row.append(trace_feedbacks[i])
         row.append(trace_retro_feedbacks[i])
+        if i == 0:
+            row.append(trainer_experience)
+            row.append(first_trial)
+        table.append(row)
+    
+    with open(filename, "w+") as csvfile:
+        writer = csv.writer(csvfile)
+        [writer.writerow(r) for r in table]
+        
+def save_run(seed, final_run_history, filename):   
+    table = [["state", "action", "next_state", "done", "curr_time", "seed"]]
+    
+    for i in range(len(final_run_history)):
+        row = []
+        for j in range(len(final_run_history[i])):
+            row.append(final_run_history[i][j])
+        if i == 0:
+            row.append(seed)
         table.append(row)
     
     with open(filename, "w+") as csvfile:
@@ -195,16 +214,24 @@ if __name__ == "__main__":
     trace_retro_feedbacks = []
     scores = 0
     count_seed = 0
+    
+    name = input("Please enter your name: ")
+    experience_level = input("How much experience have you had with Mountain Car before this? (0 - 10, 0 being none, 10 being competitive Mountain-Carrer)")
+    first_trial = input("Is this your first Mountain Car Trial? [y/n]:")                
+    csv_filename = "results/Retro_TAMER_multiple_" + name + ".csv"
+    finalrun_filename = "results/Retro_TAMER_multiple_run_history_" + name + ".csv"
+    
     for e in range(EPISODES):
         legal_input = False
         while (not legal_input):
             user_input = input("Continue training? [y/n]: ")
             if user_input == "n":
-                name = input("Please enter your name: ")
-                filename = "results/Retro_TAMER_multiple_" + name + ".csv"
-                save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename)
-                legal_input = True
-                exit(1)
+                save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, experience_level, first_trial, csv_filename)
+#                 legal_input = True
+                print("Results saved to " + str(csv_filename))
+                save_run(count_seed, full_history, finalrun_filename)
+                print("Final run saved to " + str(finalrun_filename))
+                sys.exit(0)
             elif user_input == "y":
                 legal_input = True
                 pass
@@ -239,14 +266,14 @@ if __name__ == "__main__":
                 num_feedbacks += 1
                 h = 1.0           
 
-            # give more reward if the cart reaches the flag in 200 steps
-            if done:
-                print("giving reward")
-                print("position " + str(env.state[0])) #position
-                print("velocity " + str(env.state[1])) #velocity
-                print("goal position " + str(env.goal_position))
-                print("goal velocity " + str(env.goal_velocity))
-                print(bool(env.state[0] >= env.goal_position and env.state[1] >= env.goal_velocity))
+#             # End state
+#             if done:
+#                 print("giving reward")
+#                 print("position " + str(env.state[0])) #position
+#                 print("velocity " + str(env.state[1])) #velocity
+#                 print("goal position " + str(env.goal_position))
+#                 print("goal velocity " + str(env.goal_velocity))
+#                 print(bool(env.state[0] >= env.goal_position and env.state[1] >= env.goal_velocity))
             
             next_state = np.reshape(next_state, [1, state_size])
             
@@ -256,7 +283,7 @@ if __name__ == "__main__":
             update_history(history, state, action, next_state, done, curr_time)
             if h != 0:
                 time.sleep(STOP_TIME)
-#                 print("credit assigned")
+                print(str(h) + " credit assigned")
                 to_remember = assign_credit(history)
 #                 print(len(to_remember))
                 # get all state, action, reward, next_state, done that we need to train on
@@ -310,6 +337,11 @@ if __name__ == "__main__":
         h = 0.0
         num_remembered = 0
         num_retro_feedbacks = 0
+        
+        print("----------------")
+        print("Begin simulation: Press up to continue, left to assign negative feedback, right to assign positive feedback.")
+        print("----------------")
+        
         while True:
             if count_actions >= max_actions:
                 break
@@ -339,7 +371,9 @@ if __name__ == "__main__":
                 h = 0.0
         
         if num_remembered > 0:
-            agent.replay(num_remembered)
+            print(num_remembered)
+            print(len(agent.memory))
+            agent.replay(len(agent.memory)) #num_remembered crashes out
             agent.memory = deque(maxlen=2000)
         
         trace_retro_feedbacks.append(num_retro_feedbacks) 

@@ -1,0 +1,13 @@
+There one was a man named Osman, who really wanted to have James Cameron cry 800 years layter, and so, he found the Ottoman Empire.
+
+Mountain Car: The goal of this agent is to reach the flag at the top right by rocking back and forth along the track. 
+	Your goal as the trainer is to help the agent achieve its goal by providing positive and negative feedback on its actions. 
+You will be able to see where the agent is and its velocity; on the terminal you will also see which direction the agent will be accelerating in
+(left, right, or still). 
+You can press the left key if the agent is not making the right decision, or the right key if the agent is making the right decision.
+Each individual training session ends when the car reaches the flag. You can choose to continue training (if you can find it within yourself,
+at least 3 sessions would be great :)) or you can end. Please enter your name before finishing.
+
+
+For Retro-TAMER, after each time the car reaches the flag, you will also be given a playback of the training session you just went through. You
+can press the up key to progress through the training one frame at a time, and assign additional feedback at the exact points of interest.

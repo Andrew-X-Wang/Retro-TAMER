@@ -16,6 +16,8 @@ import keyboard
 import time
 import copy
 import math
+import sys
+import csv
 
 EPISODES = 400
 
@@ -150,18 +152,37 @@ def assign_credit(history):
         
     return to_remember
 
-def save_results(trace_timesteps, trace_feedbacks, filename):
-    table = [["Timesteps", "Feedbacks"]]
+def save_results(trace_timesteps, trace_feedbacks, trainer_experience, first_trial, filename):
+    table = [["Timesteps", "Feedbacks", "Experience Level", "First Trial?"]]
     
     for i in range(len(trace_timesteps)):
         row = []
         row.append(trace_timesteps[i])
         row.append(trace_feedbacks[i])
+        if (i == 0):
+            row.append(trainer_experience)
+            row.append(first_trial)
         table.append(row)
     
     with open(filename, "w+") as csvfile:
         writer = csv.writer(csvfile)
         [writer.writerow(r) for r in table]
+        
+def save_run(seed, final_run_history, filename):   
+    table = [["state", "action", "next_state", "done", "curr_time", "seed"]]
+    
+    for i in range(len(final_run_history)):
+        row = []
+        for j in range(len(final_run_history[i])):
+            row.append(final_run_history[i][j])
+        if i == 0:
+            row.append(seed)
+        table.append(row)
+    
+    with open(filename, "w+") as csvfile:
+        writer = csv.writer(csvfile)
+        [writer.writerow(r) for r in table]
+
         
 
 if __name__ == "__main__":
@@ -179,16 +200,25 @@ if __name__ == "__main__":
     trace_feedbacks = []
     scores = 0
     count_seed = 0
+    
+    name = input("Please enter your name ([first]_[last]): ")
+    experience_level = input("How much experience have you had with Mountain Car before this? (0 - 10, 0 being none, 10 being competitive Mountain-Carrer)")
+    first_trial = input("Is this your first Mountain Car Trial? [y/n]:")
+    csv_filename = "results/TAMER_" + name + ".csv"
+    finalrun_filename = "results/TAMER_run_history_" + name + ".csv"
+    
     for e in range(EPISODES):
         legal_input = False
         while (not legal_input):
             user_input = input("Continue training? [y/n]: ")
             if user_input == "n":
-                name = input("Please enter your name: ")
-                filename = "results/TAMER_" + name + ".csv"
-                save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename)
-                legal_input = True
-                exit(1)
+                save_results(trace_timesteps, trace_feedbacks, experience_level, first_trial, csv_filename)
+#                 legal_input = True
+                print("Resuls saved to " + str(csv_filename))
+                save_run(count_seed, full_history, finalrun_filename)
+                print("Final run saved to " + str(finalrun_filename))
+                sys.exit()
+                print("What")
             elif user_input == "y":
                 legal_input = True
                 pass
@@ -202,6 +232,7 @@ if __name__ == "__main__":
         flag = 0
         h = 0.0
         count = 0
+        num_feedbacks = 0
         
         full_history = []
         history = [] # Last is newest, first is oldest
@@ -238,6 +269,7 @@ if __name__ == "__main__":
             if h != 0:
                 time.sleep(STOP_TIME)
                 print("credit assigned")
+                num_feedbacks += 1
                 to_remember = assign_credit(history)
                 # get all state, action, reward, next_state, done that we need to train on
                 

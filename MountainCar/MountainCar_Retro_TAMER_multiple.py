@@ -361,7 +361,7 @@ if __name__ == "__main__":
             
             if h != 0.0:
                 time.sleep(STOP_TIME)
-                print("credit assigned")
+                print(str(h) + " credit assigned")
                 
                 to_remember = assign_credit_retro(history[:count_actions])
                 for s, action, next_s, d, t in to_remember:

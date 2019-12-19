@@ -316,7 +316,7 @@ if __name__ == "__main__":
             if h != 0.0:
                 num_retro_feedbacks += 1
                 time.sleep(STOP_TIME)
-                print("credit assigned")
+                print(str(h) + " credit assigned")
                 reward = h
                 agent.remember(s, action, reward, next_s, d)  
                 num_remembered += 1

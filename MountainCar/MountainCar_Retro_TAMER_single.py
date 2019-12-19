@@ -16,6 +16,7 @@ import keyboard
 import time
 import copy
 import math
+import csv
 
 EPISODES = 400
 
@@ -158,7 +159,7 @@ def save_results(trace_timesteps, trace_feedback, trace_retro_feedbacks, filenam
         row = []
         row.append(trace_timesteps[i])
         row.append(trace_feedback[i])
-        row_append(tracte_retro_feedback[i])
+        row.append(trace_retro_feedbacks[i])
         table.append(row)
     
     with open(filename, "w+") as csvfile:
@@ -183,13 +184,14 @@ if __name__ == "__main__":
     trace_retro_feedbacks = []
     scores = 0
     count_seed = 0
+
+    name = input("Please enter your name: ")
+    filename = "results/Retro_TAMER_single_" + name + ".csv"
     for e in range(EPISODES):
         legal_input = False
         while (not legal_input):
             user_input = input("Continue training? [y/n]: ")
             if user_input == "n":
-                name = input("Please enter your name: ")
-                filename = "results/Retro_TAMER_single_" + name + ".csv"
                 save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename)
                 legal_input = True
                 exit(1)
@@ -206,6 +208,7 @@ if __name__ == "__main__":
         flag = 0
         h = 0.0
         count = 0
+        num_feedbacks = 0
         
         full_history = []
         history = [] # Last is newest, first is oldest
@@ -242,6 +245,7 @@ if __name__ == "__main__":
             if h != 0:
                 time.sleep(STOP_TIME)
                 print("credit assigned")
+                num_feedbacks += 1
                 to_remember = assign_credit(history)
                 # get all state, action, reward, next_state, done that we need to train on
                 
@@ -293,6 +297,7 @@ if __name__ == "__main__":
         count_actions = 0
         h = 0.0
         num_remembered = 0
+        num_retro_feedbacks = 0
         while True:
             if count_actions >= max_actions:
                 break
@@ -309,6 +314,7 @@ if __name__ == "__main__":
                 h = 1.0
             
             if h != 0.0:
+                num_retro_feedbacks += 1
                 time.sleep(STOP_TIME)
                 print("credit assigned")
                 reward = h

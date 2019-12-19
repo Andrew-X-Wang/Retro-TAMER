@@ -10,4 +10,5 @@ at least 3 sessions would be great :)) or you can end. Please enter your name be
 
 
 For Retro-TAMER, after each time the car reaches the flag, you will also be given a playback of the training session you just went through. You
-can press the up key to progress through the training one frame at a time, and assign additional feedback at the exact points of interest.
+can press the up key to progress through the training one frame at a time, and assign additional feedback in the same way as before at the exact 
+points of interest.

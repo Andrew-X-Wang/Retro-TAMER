@@ -244,7 +244,7 @@ if __name__ == "__main__":
             update_history(history, state, action, next_state, done, curr_time)
             if h != 0:
                 time.sleep(STOP_TIME)
-                print("credit assigned")
+                print(str(h) + " credit assigned")
                 num_feedbacks += 1
                 to_remember = assign_credit(history)
                 # get all state, action, reward, next_state, done that we need to train on

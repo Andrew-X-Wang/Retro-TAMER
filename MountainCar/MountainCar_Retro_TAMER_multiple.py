@@ -219,7 +219,8 @@ if __name__ == "__main__":
     experience_level = input("How much experience have you had with Mountain Car before this? (0 - 10, 0 being none, 10 being competitive Mountain-Carrer)")
     first_trial = input("Is this your first Mountain Car Trial? [y/n]:")                
     csv_filename = "results/Retro_TAMER_multiple_" + name + ".csv"
-    finalrun_filename = "results/Retro_TAMER_multiple_run_history_" + name + ".csv"
+    finalrun_filename = "run_history_results/Retro_TAMER_multiple_run_history_" + name + ".csv"
+    run_history_filename = "run_history_results/Retro_TAMER_multiple_run_history_" + name + "_ep_"
     
     for e in range(EPISODES):
         legal_input = False
@@ -234,6 +235,12 @@ if __name__ == "__main__":
                 sys.exit(0)
             elif user_input == "y":
                 legal_input = True
+                if e != 0:
+                    user_input_save_history = input("Would you like to save the run history? [y/n]: ")
+                    if user_input_save_history == "y":
+                        curr_run_history_filename = run_history_filename + str(e) + ".csv"
+                        save_run(count_seed, full_history, curr_run_history_filename)
+                        print("Run history saved to " + curr_run_history_filename)
                 pass
             else:
                 print("Illegal input, must be [y/n]")

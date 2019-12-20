@@ -166,6 +166,22 @@ def save_results(trace_timesteps, trace_feedback, trace_retro_feedbacks, filenam
         writer = csv.writer(csvfile)
         [writer.writerow(r) for r in table]
         
+
+def save_run(seed, final_run_history, filename):   
+    table = [["state", "action", "next_state", "done", "curr_time", "seed"]]
+    
+    for i in range(len(final_run_history)):
+        row = []
+        for j in range(len(final_run_history[i])):
+            row.append(final_run_history[i][j])
+        if i == 0:
+            row.append(seed)
+        table.append(row)
+    
+    with open(filename, "w+") as csvfile:
+        writer = csv.writer(csvfile)
+        [writer.writerow(r) for r in table]
+        
         
 
 if __name__ == "__main__":
@@ -186,17 +202,28 @@ if __name__ == "__main__":
     count_seed = 0
 
     name = input("Please enter your name: ")
-    filename = "results/Retro_TAMER_single_" + name + ".csv"
+    csv_filename = "results/Retro_TAMER_single_" + name + ".csv"
+    finalrun_filename = "run_history_results/Retro_TAMER_single_run_history_" + name + ".csv"
+    run_history_filename = "run_history_results/Retro_TAMER_single_run_history_" + name + "_ep_"
     for e in range(EPISODES):
         legal_input = False
         while (not legal_input):
             user_input = input("Continue training? [y/n]: ")
             if user_input == "n":
-                save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, filename)
+                save_results(trace_timesteps, trace_feedbacks, trace_retro_feedbacks, csv_filename)
+                print("Results saved to " + str(csv_filename))
+                save_run(count_seed, full_history, finalrun_filename)
+                print("Final run saved to " + str(finalrun_filename))
                 legal_input = True
                 exit(1)
             elif user_input == "y":
                 legal_input = True
+                if e != 0:
+                    user_input_save_history = input("Would you like to save the run history? [y/n]: ")
+                    if user_input_save_history == "y":
+                        curr_run_history_filename = run_history_filename + str(e) + ".csv"
+                        save_run(count_seed, full_history, curr_run_history_filename)
+                        print("Run history saved to " + curr_run_history_filename)
                 pass
             else:
                 print("Illegal input, must be [y/n]")
